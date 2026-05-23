@@ -34,13 +34,14 @@
 **目标**：跑通"对话→结构化记录→存储→检索"的最短链路
 
 里程碑：
-- [ ] M0.1 本地服务骨架 (Python + FastAPI)
-- [ ] M0.2 Ollama 接入，记录 Agent 能从中文口语生成结构化条目
-- [ ] M0.3 SQLite + sqlite-vec 跑通最小读写
-- [ ] M0.4 Web 端最简界面：能输入对话、看到结构化结果
+- [x] M0.1 本地服务骨架 (Python + FastAPI)
+- [x] M0.2 Ollama 接入，记录 Agent 能从中文口语生成结构化条目
+- [x] M0.3 SQLite + sqlite-vec 跑通最小读写
+- [ ] M0.4 Web 端最简界面：能输入对话、看到结构化结果（**MVP 跳过——CLI/HTTP 已能验证完成判定，前端推迟到 Phase 1 一起做，避免 React 模板把第一个 commit 推得太重**）
 
 **模式建议**：Cowork 出 PRD → Code 实现
 **完成判定**：你能说出"今天瑶瑶第一次自己尿尿了"，看到结构化条目落库。
+**实际验证**：`POST /events` + `GET /events` 真机跑通，valid 9/10 / type-match 9/10（≥ F7 门槛 9/8）。详见 `reports/phase0-baseline.md`。
 
 ---
 
@@ -155,7 +156,7 @@ Week 1            Week 2-3          Week 4-5          Week 6-7         Week 8
 
 | 阶段 | 状态 | 链接 | 备注 |
 |---|---|---|---|
-| Phase 0 | ⬜ 未开始 | — | — |
+| Phase 0 | ✅ 完成 | `reports/phase0-baseline.md` | M0.4 前端推迟到 Phase 1；recorder 9/10 valid + 9/10 type-match @ qwen2.5:3b-instruct |
 | Phase 1 | ⬜ 未开始 | — | — |
 | Phase 2 | ⬜ 未开始 | — | — |
 | Phase 3 | ⬜ 未开始 | — | — |
@@ -165,4 +166,4 @@ Week 1            Week 2-3          Week 4-5          Week 6-7         Week 8
 
 ---
 
-_最后更新：2026-05-15 — Cowork 起草。每个 Phase 完成后由实际执行者更新状态。_
+_最后更新：2026-05-22 — Phase 0 完成（Code 模式）。_
