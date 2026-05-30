@@ -37,7 +37,7 @@
 - [x] M0.1 本地服务骨架 (Python + FastAPI)
 - [x] M0.2 Ollama 接入，记录 Agent 能从中文口语生成结构化条目
 - [x] M0.3 SQLite + sqlite-vec 跑通最小读写
-- [ ] M0.4 Web 端最简界面：能输入对话、看到结构化结果（**MVP 跳过——CLI/HTTP 已能验证完成判定，前端推迟到 Phase 1 一起做，避免 React 模板把第一个 commit 推得太重**）
+- [x] M0.4 Web 端最简界面：能输入对话、看到结构化结果（**已合并到 Phase 1：Next.js + 三屏 `/log` `/timeline` `/heatmap` 见 `web/`**）
 
 **模式建议**：Cowork 出 PRD → Code 实现
 **完成判定**：你能说出"今天瑶瑶第一次自己尿尿了"，看到结构化条目落库。
@@ -49,13 +49,13 @@
 **目标**：把"原始事件"变成"信号"，搭起**重复模式 + 成长变化轨迹**的最小骨架
 
 里程碑：
-- [ ] M1.1 定义信号 schema：
+- [x] M1.1 定义信号 schema：
        - 类型：兴趣模式 / 情绪模式 / 技能模式 / 异常变化 / 成长跃迁
        - 每个信号必须带 (强度, 出现时孩子月龄, 与上一周期的变化量)
-- [ ] M1.2 信号提取 Agent v0：基于规则 + 本地模型混合
-- [ ] M1.3 信号可视化：时间轴 + 热度图，**且热度图必须能展示"随发展阶段的变化"**
+- [x] M1.2 信号提取 Agent v0：基于规则 + 本地模型混合
+- [x] M1.3 信号可视化：时间轴 + 热度图，**且热度图必须能展示"随发展阶段的变化"**
        （而不是简单"全年累计强度"）
-- [ ] M1.4 数据回灌：你提供过去若干月的回忆事件，验证信号系统能识别
+- [x] M1.4 数据回灌：你提供过去若干月的回忆事件，验证信号系统能识别
 
 **模式建议**：Cowork 设计 schema、Code 实现、你做数据回灌
 **完成判定**：你看着信号热度图能说"对，瑶瑶最近确实对音乐有兴趣"，**并且能区分出哪些是稳定模式、哪些是阶段性的"过去就过去了"**。
@@ -156,9 +156,9 @@ Week 1            Week 2-3          Week 4-5          Week 6-7         Week 8
 
 | 阶段 | 状态 | 链接 | 备注 |
 |---|---|---|---|
-| Phase 0 | ✅ 完成 | `reports/phase0-baseline.md` | M0.4 前端推迟到 Phase 1；recorder 9/10 valid + 9/10 type-match @ qwen2.5:3b-instruct |
-| Phase 1 | ⬜ 未开始 | — | — |
-| Phase 2 | ⬜ 未开始 | — | — |
+| Phase 0 | ✅ 完成 | `reports/phase0-baseline.md` | M0.4 合并到 Phase 1；recorder 9/10 valid + 9/10 type-match @ qwen2.5:3b-instruct |
+| Phase 1 | ✅ 完成 | `reports/phase1-baseline.md` | recall 3/3 + precision ≥60% on golden fixture；BGE 512d <40ms warm；前端三屏跑通；137 tests / 89.79% cov |
+| Phase 2 | 🟡 进行中 | `prd/phase2-weekly-insight.md` | Cowork 2026-05-26 审定通过；主模型先 Sonnet 4 周建上限再 A/B 切 Haiku；本地兜底 3B chain（[ADR-0003]）；evidence 引用硬约束；A/B/B'/C 盲测 4 周 |
 | Phase 3 | ⬜ 未开始 | — | — |
 | Phase 4 | ⬜ 未开始 | — | — |
 
@@ -166,4 +166,5 @@ Week 1            Week 2-3          Week 4-5          Week 6-7         Week 8
 
 ---
 
-_最后更新：2026-05-22 — Phase 0 完成（Code 模式）。_
+_最后更新：2026-05-25 — Phase 1 实现完成（Code 模式），状态翻 ✅。_
+_2026-05-26 — Cowork 审定 Phase 2 PRD，状态翻 🟡 进行中；ADR-0003 本地兜底 chain + 远端可迁移已 accepted。_

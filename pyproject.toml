@@ -25,6 +25,12 @@ dev = [
     "ruff>=0.7",
     "mypy>=1.13",
 ]
+# Phase 1 §2.1#3 — BGE-small-zh-v1.5 via sentence-transformers. Kept
+# optional because the unit suite uses a stub; install for the
+# integration baseline run or to serve the live API end-to-end.
+ml = [
+    "sentence-transformers>=3.0",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -57,7 +63,13 @@ select = [
     "RUF", # ruff-specific
 ]
 ignore = [
-    "E501",  # line length handled by black
+    "E501",   # line length handled by black
+    # Chinese-content false positives — this project intentionally uses
+    # full-width punctuation in user-visible strings, fixtures, prompts, and
+    # docstrings. The `× / x` warnings show up in math notation we want kept.
+    "RUF001", # ambiguous unicode in strings
+    "RUF002", # ambiguous unicode in docstrings
+    "RUF003", # ambiguous unicode in comments
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -90,7 +102,7 @@ addopts = [
     "--cov-fail-under=70",
 ]
 markers = [
-    "integration: requires real Ollama (deselect with '-m \"not integration\"')",
+    "integration: requires real Ollama or BGE weights (deselect with '-m \"not integration\"')",
 ]
 asyncio_mode = "auto"
 

@@ -27,7 +27,8 @@ export BGH_DB
 export BGH_LLM_BACKEND
 export BGH_OLLAMA_MODEL
 
-.PHONY: install db-init seed run test test-all lint fmt clean help
+.PHONY: install db-init seed run test test-all lint fmt clean help \
+        web-install web-dev web-build web-lint
 
 help:
 	@echo "BabyGrowHelper — Phase 0"
@@ -74,3 +75,23 @@ clean:
 	rm -rf .pytest_cache .mypy_cache .ruff_cache .coverage htmlcov
 	rm -rf src/**/__pycache__ tests/**/__pycache__
 	rm -f $(BGH_DB) $(BGH_DB)-journal $(BGH_DB)-shm $(BGH_DB)-wal
+
+# ---- Phase 1 frontend (web/) ---------------------------------------------
+#
+# We default to `npm` because it's bundled with Node and needs no global
+# install. If you have pnpm available, override on the command line:
+#   make web-install WEB_PM=pnpm
+
+WEB_PM ?= npm
+
+web-install:
+	cd web && $(WEB_PM) install
+
+web-dev:
+	cd web && $(WEB_PM) run dev
+
+web-build:
+	cd web && $(WEB_PM) run build
+
+web-lint:
+	cd web && $(WEB_PM) run lint && $(WEB_PM) run typecheck

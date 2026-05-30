@@ -18,10 +18,9 @@ from pathlib import Path
 
 import httpx
 import pytest
-
-from src.agents.recorder import RecorderError
-from src.agents.recorder import Recorder
+from src.agents.recorder import Recorder, RecorderError
 from src.core.llm_client import LLMClient
+
 from tests.fixtures.recorder_samples import SAMPLES
 
 pytestmark = pytest.mark.integration

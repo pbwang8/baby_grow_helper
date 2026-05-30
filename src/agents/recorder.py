@@ -109,7 +109,7 @@ def load_system_prompt() -> str:
 
 
 def _now_iso() -> str:
-    return dt.datetime.now(dt.timezone.utc).astimezone().isoformat(timespec="seconds")
+    return dt.datetime.now(dt.UTC).astimezone().isoformat(timespec="seconds")
 
 
 def _new_event_id(timestamp: str) -> str:

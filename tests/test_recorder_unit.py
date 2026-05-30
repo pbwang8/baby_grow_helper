@@ -12,7 +12,6 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
-
 from src.agents.recorder import (
     ALLOWED_DOMAINS,
     ALLOWED_EMOTIONS,
@@ -23,8 +22,8 @@ from src.agents.recorder import (
     parse_recorder_output,
 )
 from src.core.llm_client import LLMClient, LLMResult
-from tests.fixtures.recorder_samples import SAMPLES, RecorderSample
 
+from tests.fixtures.recorder_samples import SAMPLES, RecorderSample
 
 # ---- parse_recorder_output -------------------------------------------
 
@@ -140,7 +139,7 @@ class _StubLLM(LLMClient):
         super().__init__()
         self._payloads = payloads
 
-    def generate(self, prompt: str, **kwargs: object) -> LLMResult:  # type: ignore[override]
+    def generate(self, prompt: str, **kwargs: object) -> LLMResult:
         return LLMResult(
             text=next(self._payloads),
             tokens_in=10,

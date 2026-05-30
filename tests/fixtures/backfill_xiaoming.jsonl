@@ -1,0 +1,65 @@
+{"timestamp": "2025-12-02T19:30:00+08:00", "summary": "睡前讲了《晚安月亮》", "type": "routine", "domains": ["language"], "emotions": ["calm"], "context": "睡前"}
+{"timestamp": "2025-12-04T10:00:00+08:00", "summary": "和奶奶在小区滑滑梯，跟陌生小孩打招呼", "type": "observation", "domains": ["social", "physical"], "emotions": ["happy"], "context": "小区"}
+{"timestamp": "2025-12-06T16:00:00+08:00", "summary": "把香蕉切成小块自己吃完了", "type": "observation", "domains": ["self_care"], "emotions": ["proud"], "context": "餐桌"}
+{"timestamp": "2025-12-08T10:30:00+08:00", "summary": "找小区里的浩浩玩了半小时积木", "type": "observation", "domains": ["social"], "emotions": ["happy"], "context": "小区"}
+{"timestamp": "2025-12-11T14:00:00+08:00", "summary": "在游乐场和姐姐一起追泡泡", "type": "observation", "domains": ["social", "physical"], "emotions": ["excited"], "context": "公园"}
+{"timestamp": "2025-12-14T09:00:00+08:00", "summary": "拿勺子吃稀饭，撒了一半", "type": "observation", "domains": ["self_care"], "emotions": ["focused"], "context": "餐桌"}
+{"timestamp": "2025-12-16T17:00:00+08:00", "summary": "和邻居家的妹妹一起搭积木", "type": "observation", "domains": ["social"], "emotions": ["happy"], "context": "邻居家"}
+{"timestamp": "2025-12-18T20:00:00+08:00", "summary": "睡前问'月亮在哪里'", "type": "observation", "domains": ["language", "cognition"], "emotions": ["curious"], "context": "睡前"}
+{"timestamp": "2025-12-21T10:00:00+08:00", "summary": "在小区蹦跳着追同班小朋友", "type": "observation", "domains": ["social", "physical"], "emotions": ["excited"], "context": "小区"}
+{"timestamp": "2025-12-23T15:00:00+08:00", "summary": "和外婆一起做了花生酥", "type": "observation", "domains": ["social", "creativity"], "emotions": ["proud"], "context": "厨房"}
+{"timestamp": "2025-12-26T11:00:00+08:00", "summary": "幼儿园圣诞活动主动加入合唱", "type": "observation", "domains": ["social", "music"], "emotions": ["happy"], "context": "幼儿园"}
+{"timestamp": "2025-12-29T19:00:00+08:00", "summary": "晚饭挑食只吃饺子皮", "type": "concern", "domains": ["self_care"], "emotions": ["frustrated"], "context": "餐桌"}
+{"timestamp": "2026-01-03T10:00:00+08:00", "summary": "和小区里的弟弟玩沙子玩了一个小时", "type": "observation", "domains": ["social"], "emotions": ["happy"], "context": "小区"}
+{"timestamp": "2026-01-06T16:30:00+08:00", "summary": "幼儿园同学来家里玩，主动分享玩具", "type": "observation", "domains": ["social"], "emotions": ["happy"], "context": "家"}
+{"timestamp": "2026-01-09T18:00:00+08:00", "summary": "感冒发烧 38.5", "type": "concern", "domains": ["health"], "emotions": ["tired"], "context": "家"}
+{"timestamp": "2026-01-12T20:00:00+08:00", "summary": "病好了，喊爸爸再讲一遍《好饿的毛毛虫》", "type": "observation", "domains": ["language"], "emotions": ["happy"], "context": "睡前"}
+{"timestamp": "2026-01-15T10:00:00+08:00", "summary": "和邻居姐姐玩过家家两小时", "type": "observation", "domains": ["social", "creativity"], "emotions": ["excited"], "context": "邻居家"}
+{"timestamp": "2026-01-18T14:00:00+08:00", "summary": "学会自己穿上拉链棉袄", "type": "milestone", "domains": ["self_care", "independence"], "emotions": ["proud"], "context": "门口"}
+{"timestamp": "2026-01-21T11:00:00+08:00", "summary": "和小区里几个小朋友一起追跑打闹", "type": "observation", "domains": ["social", "physical"], "emotions": ["excited"], "context": "小区"}
+{"timestamp": "2026-01-25T19:30:00+08:00", "summary": "睡前自己复述今天遇到的小狗", "type": "observation", "domains": ["language"], "emotions": ["focused"], "context": "睡前"}
+{"timestamp": "2026-01-29T10:00:00+08:00", "summary": "幼儿园生日会，主动给同学唱生日歌", "type": "observation", "domains": ["social", "music"], "emotions": ["happy"], "context": "幼儿园"}
+{"timestamp": "2026-02-02T17:00:00+08:00", "summary": "学会自己倒水不洒", "type": "observation", "domains": ["self_care"], "emotions": ["proud"], "context": "餐桌"}
+{"timestamp": "2026-02-05T10:30:00+08:00", "summary": "在小区追蝴蝶追了 20 分钟", "type": "observation", "domains": ["physical", "nature"], "emotions": ["excited"], "context": "小区"}
+{"timestamp": "2026-02-08T16:00:00+08:00", "summary": "玩具坏了着急地哭", "type": "observation", "domains": ["emotion"], "emotions": ["sad", "frustrated"], "context": "家"}
+{"timestamp": "2026-02-12T20:00:00+08:00", "summary": "睡前自己讲了一段流水账", "type": "observation", "domains": ["language"], "emotions": ["focused"], "context": "睡前"}
+{"timestamp": "2026-02-15T11:00:00+08:00", "summary": "听到电视里的歌跟着哼", "type": "observation", "domains": ["music"], "emotions": ["happy"], "context": "客厅"}
+{"timestamp": "2026-02-18T19:30:00+08:00", "summary": "搭高积木倒了，自己又重搭", "type": "observation", "domains": ["motor", "cognition"], "emotions": ["focused"], "context": "家"}
+{"timestamp": "2026-02-21T10:00:00+08:00", "summary": "在小区帮新来的小妹妹捡球", "type": "observation", "domains": ["social"], "emotions": ["proud"], "context": "小区"}
+{"timestamp": "2026-02-25T15:00:00+08:00", "summary": "跟妈妈说想念奶奶", "type": "observation", "domains": ["emotion", "language"], "emotions": ["sad"], "context": "家"}
+{"timestamp": "2026-02-28T18:00:00+08:00", "summary": "晚餐主动尝试新菜西兰花", "type": "observation", "domains": ["self_care"], "emotions": ["curious"], "context": "餐桌"}
+{"timestamp": "2026-03-04T10:00:00+08:00", "summary": "在小区蹦床蹦了半小时", "type": "observation", "domains": ["physical"], "emotions": ["happy"], "context": "小区"}
+{"timestamp": "2026-03-07T16:30:00+08:00", "summary": "和爷爷一起浇花", "type": "observation", "domains": ["nature", "social"], "emotions": ["calm"], "context": "阳台"}
+{"timestamp": "2026-03-10T20:00:00+08:00", "summary": "睡前唱了半首《小星星》", "type": "observation", "domains": ["music"], "emotions": ["happy"], "context": "睡前"}
+{"timestamp": "2026-03-13T11:00:00+08:00", "summary": "帮妈妈递快递袋", "type": "observation", "domains": ["independence"], "emotions": ["proud"], "context": "家"}
+{"timestamp": "2026-03-17T15:00:00+08:00", "summary": "看见绘本里的鼓自己用手比划打鼓", "type": "observation", "domains": ["music", "creativity"], "emotions": ["excited"], "context": "家"}
+{"timestamp": "2026-03-20T19:00:00+08:00", "summary": "因为不让看动画片大哭", "type": "observation", "domains": ["emotion"], "emotions": ["angry", "frustrated"], "context": "家"}
+{"timestamp": "2026-03-24T10:30:00+08:00", "summary": "听到广场舞音乐自己扭起来", "type": "observation", "domains": ["music", "physical"], "emotions": ["excited"], "context": "小区"}
+{"timestamp": "2026-03-27T17:00:00+08:00", "summary": "和爸爸一起拼了 30 片拼图", "type": "observation", "domains": ["cognition"], "emotions": ["focused"], "context": "家"}
+{"timestamp": "2026-03-30T20:00:00+08:00", "summary": "睡前问'为什么月亮跟着我们走'", "type": "observation", "domains": ["cognition", "language"], "emotions": ["curious"], "context": "睡前"}
+{"timestamp": "2026-04-02T11:00:00+08:00", "summary": "在小公园和姐姐一起玩沙子", "type": "observation", "domains": ["social"], "emotions": ["happy"], "context": "公园"}
+{"timestamp": "2026-04-05T18:00:00+08:00", "summary": "学会自己洗手不用大人扶", "type": "observation", "domains": ["self_care"], "emotions": ["proud"], "context": "卫生间"}
+{"timestamp": "2026-04-08T15:00:00+08:00", "summary": "听到《小毛驴》主动跟唱", "type": "observation", "domains": ["music"], "emotions": ["happy"], "context": "客厅"}
+{"timestamp": "2026-04-11T10:00:00+08:00", "summary": "幼儿园不太想进教室，让妈妈陪了一会", "type": "concern", "domains": ["emotion"], "emotions": ["anxious"], "context": "幼儿园"}
+{"timestamp": "2026-04-14T19:30:00+08:00", "summary": "晚上自己刷牙刷了一分钟", "type": "observation", "domains": ["self_care"], "emotions": ["focused"], "context": "卫生间"}
+{"timestamp": "2026-04-17T10:00:00+08:00", "summary": "在小区单独玩沙子，没找小朋友", "type": "observation", "domains": ["physical"], "emotions": ["calm"], "context": "小区"}
+{"timestamp": "2026-04-20T15:00:00+08:00", "summary": "拿起小鼓敲了一段节奏", "type": "observation", "domains": ["music", "creativity"], "emotions": ["excited"], "context": "家"}
+{"timestamp": "2026-04-22T19:00:00+08:00", "summary": "睡前要求播放《小星星》三遍", "type": "observation", "domains": ["music"], "emotions": ["calm"], "context": "睡前"}
+{"timestamp": "2026-04-25T11:00:00+08:00", "summary": "在家自己用绘本听音乐", "type": "observation", "domains": ["music"], "emotions": ["focused"], "context": "家"}
+{"timestamp": "2026-04-26T15:00:00+08:00", "summary": "和小区里的浩浩一起追跑了半小时", "type": "observation", "domains": ["social"], "emotions": ["happy"], "context": "小区"}
+{"timestamp": "2026-04-27T16:00:00+08:00", "summary": "幼儿园午睡前不愿意脱外套，闹了一会", "type": "observation", "domains": ["emotion"], "emotions": ["frustrated"], "context": "幼儿园"}
+{"timestamp": "2026-04-29T10:00:00+08:00", "summary": "听到背景音乐自己手脚跟节拍", "type": "observation", "domains": ["music"], "emotions": ["happy"], "context": "客厅"}
+{"timestamp": "2026-04-30T16:30:00+08:00", "summary": "邻居姐姐过来一起玩过家家", "type": "observation", "domains": ["social", "creativity"], "emotions": ["happy"], "context": "家"}
+{"timestamp": "2026-05-03T11:00:00+08:00", "summary": "在小区和小伙伴一起玩沙子", "type": "observation", "domains": ["social"], "emotions": ["happy"], "context": "小区"}
+{"timestamp": "2026-05-07T15:00:00+08:00", "summary": "幼儿园同学家里聚会，主动加入游戏", "type": "observation", "domains": ["social"], "emotions": ["excited"], "context": "邻居家"}
+{"timestamp": "2026-05-02T20:00:00+08:00", "summary": "睡前自己哼《小星星》", "type": "observation", "domains": ["music"], "emotions": ["calm"], "context": "睡前"}
+{"timestamp": "2026-05-11T19:00:00+08:00", "summary": "第一次自己说'要尿尿'并坐到马桶上完成", "type": "milestone", "domains": ["self_care", "independence"], "emotions": ["proud"], "context": "卫生间"}
+{"timestamp": "2026-05-06T11:00:00+08:00", "summary": "主动要求打开音乐再玩积木", "type": "observation", "domains": ["music", "creativity"], "emotions": ["excited"], "context": "家"}
+{"timestamp": "2026-05-08T17:00:00+08:00", "summary": "晚饭后听到广告音乐手舞足蹈", "type": "observation", "domains": ["music", "physical"], "emotions": ["excited"], "context": "客厅"}
+{"timestamp": "2026-05-10T19:30:00+08:00", "summary": "再一次自己说'要尿尿'，完整完成如厕", "type": "observation", "domains": ["self_care", "independence"], "emotions": ["proud"], "context": "卫生间"}
+{"timestamp": "2026-05-12T16:00:00+08:00", "summary": "找到小鼓敲了 10 分钟", "type": "observation", "domains": ["music"], "emotions": ["focused"], "context": "家"}
+{"timestamp": "2026-05-13T20:00:00+08:00", "summary": "幼儿园午睡时自己脱了袜子", "type": "observation", "domains": ["self_care"], "emotions": ["proud"], "context": "幼儿园"}
+{"timestamp": "2026-05-15T11:00:00+08:00", "summary": "主动喊爸爸放儿童歌曲", "type": "observation", "domains": ["music"], "emotions": ["happy"], "context": "家"}
+{"timestamp": "2026-05-17T17:30:00+08:00", "summary": "听到音乐自己跟着摇摆，唱出'一闪一闪'", "type": "observation", "domains": ["music"], "emotions": ["excited"], "context": "客厅"}
+{"timestamp": "2026-05-19T19:00:00+08:00", "summary": "白天独立完成两次如厕，没有提示", "type": "observation", "domains": ["self_care", "independence"], "emotions": ["proud"], "context": "卫生间"}
+{"timestamp": "2026-05-21T10:00:00+08:00", "summary": "在家自己边搭积木边哼歌", "type": "observation", "domains": ["music", "creativity"], "emotions": ["calm"], "context": "家"}
