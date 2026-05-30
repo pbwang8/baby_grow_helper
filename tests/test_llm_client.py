@@ -7,7 +7,6 @@ from pathlib import Path
 import httpx
 import pytest
 import respx
-
 from src.core import db as db_module
 from src.core.llm_client import (
     LLMClient,
@@ -35,10 +34,166 @@ def test_resolve_backend_rejects_garbage(monkeypatch: pytest.MonkeyPatch) -> Non
         _resolve_backend("auto")
 
 
-def test_cloud_backend_disabled_in_phase0() -> None:
+def test_cloud_backend_requires_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("BGH_ANTHROPIC_API_KEY", raising=False)
     client = LLMClient()
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(LLMError, match="BGH_ANTHROPIC_API_KEY"):
         client.generate("hi", backend="cloud")
+
+
+@respx.mock
+def test_cloud_generate_happy_path(tmp_db: Path) -> None:
+    """End-to-end Anthropic call: result text + usage tokens + LLMResult shape."""
+    route = respx.post("https://api.anthropic.com/v1/messages").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "id": "msg_test",
+                "type": "message",
+                "role": "assistant",
+                "model": "claude-sonnet-4-20250514",
+                "content": [{"type": "text", "text": "{\"ok\":true}"}],
+                "stop_reason": "end_turn",
+                "usage": {
+                    "input_tokens": 12,
+                    "output_tokens": 7,
+                    "cache_creation_input_tokens": 3500,
+                    "cache_read_input_tokens": 0,
+                },
+            },
+        )
+    )
+    client = LLMClient(anthropic_api_key="sk-test")
+    result = client.generate(
+        "请生成本周洞察",
+        system="You are an early-childhood development analyst.",
+        backend="cloud",
+        purpose="insight",
+    )
+    assert route.called
+    assert result.backend == "cloud"
+    assert result.model_used == "claude-sonnet-4-20250514"
+    assert result.text == '{"ok":true}'
+    # tokens_in = input_tokens + cache_creation + cache_read
+    assert result.tokens_in == 12 + 3500 + 0
+    assert result.tokens_out == 7
+    assert result.cache_creation_tokens == 3500
+    assert result.cache_read_tokens == 0
+
+    # usage_log persisted
+    conn = db_module.get_conn(tmp_db)
+    try:
+        row = conn.execute(
+            "SELECT backend, model, tokens_in, tokens_out, purpose FROM usage_log"
+        ).fetchone()
+    finally:
+        conn.close()
+    assert row is not None
+    assert row["backend"] == "cloud"
+    assert row["purpose"] == "insight"
+
+
+@respx.mock
+def test_cloud_caches_system_prompt_with_ttl_1h(tmp_db: Path) -> None:
+    """PRD §3.3: system prompt is cached with TTL=1h (extended cache beta)."""
+    route = respx.post("https://api.anthropic.com/v1/messages").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "content": [{"type": "text", "text": "ok"}],
+                "usage": {
+                    "input_tokens": 0,
+                    "output_tokens": 1,
+                    "cache_creation_input_tokens": 0,
+                    "cache_read_input_tokens": 3500,
+                },
+            },
+        )
+    )
+    client = LLMClient(anthropic_api_key="sk-test")
+    client.generate(
+        "second call",
+        system="LONG SYSTEM PROMPT" * 100,
+        backend="cloud",
+        purpose="insight",
+    )
+    assert route.called
+    sent = route.calls.last.request
+
+    # Headers: api key + version + extended-cache beta
+    assert sent.headers["x-api-key"] == "sk-test"
+    assert sent.headers["anthropic-version"] == "2023-06-01"
+    assert sent.headers["anthropic-beta"] == "extended-cache-ttl-2025-04-11"
+
+    # Body: system is a list with cache_control ephemeral 1h
+    import json as _json
+    body = _json.loads(sent.read().decode("utf-8"))
+    assert isinstance(body["system"], list)
+    assert body["system"][0]["cache_control"] == {"type": "ephemeral", "ttl": "1h"}
+    assert body["messages"][0] == {"role": "user", "content": "second call"}
+
+
+@respx.mock
+def test_cloud_cache_read_tokens_surface_on_warm_call(tmp_db: Path) -> None:
+    """When the cache hits, cache_read_tokens > 0 and input_tokens is small."""
+    respx.post("https://api.anthropic.com/v1/messages").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "content": [{"type": "text", "text": "warm"}],
+                "usage": {
+                    "input_tokens": 5,
+                    "output_tokens": 2,
+                    "cache_creation_input_tokens": 0,
+                    "cache_read_input_tokens": 4200,
+                },
+            },
+        )
+    )
+    client = LLMClient(anthropic_api_key="sk-test")
+    result = client.generate("p", system="s", backend="cloud", purpose="insight")
+    assert result.cache_read_tokens == 4200
+    assert result.cache_creation_tokens == 0
+    assert result.tokens_in == 5 + 4200
+
+
+@respx.mock
+def test_cloud_http_error_raises_llm_error(tmp_db: Path) -> None:
+    respx.post("https://api.anthropic.com/v1/messages").mock(
+        return_value=httpx.Response(
+            500, json={"type": "error", "error": {"message": "boom"}}
+        )
+    )
+    client = LLMClient(anthropic_api_key="sk-test")
+    with pytest.raises(LLMError, match="Anthropic call failed"):
+        client.generate("x", backend="cloud")
+
+
+@respx.mock
+def test_cloud_respects_proxy_base_url(tmp_db: Path) -> None:
+    """Cloud calls must use BGH_ANTHROPIC_BASE_URL (e.g. rednote runway)."""
+    route = respx.post(
+        "https://runway.devops.rednote.life/cowork/v1/messages"
+    ).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "content": [{"type": "text", "text": "ok"}],
+                "usage": {
+                    "input_tokens": 1,
+                    "output_tokens": 1,
+                    "cache_creation_input_tokens": 0,
+                    "cache_read_input_tokens": 0,
+                },
+            },
+        )
+    )
+    client = LLMClient(
+        anthropic_api_key="sk-test",
+        anthropic_base_url="https://runway.devops.rednote.life/cowork",
+    )
+    client.generate("hi", backend="cloud")
+    assert route.called
 
 
 @respx.mock

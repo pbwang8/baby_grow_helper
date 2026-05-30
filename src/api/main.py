@@ -1,28 +1,67 @@
-"""FastAPI surface for Phase 0.
+"""FastAPI surface.
 
-Routes (PRD §2.1 #5):
+Phase 0 routes (PRD `prd/phase0-skeleton.md` §2.1#5):
   POST /events          — body {child_id, raw_text} → recorder → DB → return event
   GET  /events?child_id — newest-first listing
   GET  /health          — sqlite + ollama reachability
+
+Phase 1 additions (PRD `prd/phase1-signals.md` §2.1#2 + #5):
+  GET  /signals?child_id              — list active signals for the heatmap/timeline
+  POST /signals/extract?child_id=...  — manual trigger of the extractor
+  GET  /heatmap?child_id              — per-(age_month, domain) intensity grid
+
+Phase 2 additions (PRD `prd/phase2-weekly-insight.md` §2.1#4 + #6):
+  POST /insights/generate?child_id=&week_start=YYYY-MM-DD  — write a weekly insight
+  GET  /insights/:id                                       — fetch one insight by id
+  GET  /insights?child_id=                                 — list (newest first)
+  POST /insights/:id/feedback                              — section-level feedback
 """
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 import sqlite3
-from typing import Annotated
+import uuid
+from typing import Annotated, Literal
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from src.agents.context_compressor import (
+    ContextCompressorError,
+    compress_week_context,
+)
+from src.agents.insight_writer import (
+    InsightSection,
+    InsightWriterError,
+    WeeklyInsight,
+    write_weekly_insight,
+)
 from src.agents.recorder import Recorder, RecorderError, StructuredEvent
+from src.agents.signal_extractor import SignalExtractor, SignalExtractorError
 from src.core import db as db_module
+from src.core import embeddings as emb_module
 from src.core.llm_client import LLMClient
+from src.core.models import Signal
+from src.core.signal_delta import HeatmapCell, heatmap_data
 
 app = FastAPI(
     title="BabyGrowHelper",
-    version="0.0.1-phase0",
-    description="Local-first parenting companion. Phase 0 skeleton.",
+    version="0.1.0-phase1",
+    description="Local-first parenting companion. Phase 1 — signals layer.",
+)
+
+# Phase 1 frontend runs on localhost:3000 by default. CORS opened wide
+# only for that origin — the API has zero auth in Phase 1 (single user,
+# local), so we don't want to throw the door open to file:// or random
+# extensions either.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -58,7 +97,7 @@ class EventOut(BaseModel):
     model_used: str
 
     @classmethod
-    def from_event(cls, ev: StructuredEvent) -> "EventOut":
+    def from_event(cls, ev: StructuredEvent) -> EventOut:
         return cls(
             id=ev.id,
             child_id=ev.child_id,
@@ -73,7 +112,7 @@ class EventOut(BaseModel):
         )
 
     @classmethod
-    def from_row(cls, row: sqlite3.Row) -> "EventOut":
+    def from_row(cls, row: sqlite3.Row) -> EventOut:
         return cls(
             id=row["id"],
             child_id=row["child_id"],
@@ -113,9 +152,27 @@ def health(llm: Annotated[LLMClient, Depends(get_llm_client)]) -> HealthOut:
     return HealthOut(ok=sqlite_ok and ollama_ok, sqlite=sqlite_ok, ollama=ollama_ok)
 
 
+def _embed_event_safe(event_id: str, text: str) -> None:
+    """Wrapper used as a BackgroundTask. Swallows errors so a flaky
+    embedder never breaks the user-visible POST /events response.
+
+    PRD phase1-signals §2.1#3: "每条 event 落库后异步算嵌入".
+    """
+    try:
+        emb_module.embed_and_store_event(event_id, text)
+    except Exception:  # pragma: no cover - defensive
+        # Logged for ops; the user already got their event back.
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "background embed failed for event %s", event_id, exc_info=True
+        )
+
+
 @app.post("/events", response_model=EventOut, status_code=201)
 def create_event(
     body: CreateEventRequest,
+    background: BackgroundTasks,
     recorder: Annotated[Recorder, Depends(get_recorder)],
     x_user_id: Annotated[str | None, Header(alias="X-User-Id")] = None,
 ) -> EventOut:
@@ -151,6 +208,9 @@ def create_event(
                 """,
                 row,
             )
+        # Fire-and-forget: embedding takes ~50-200ms on M-series CPU; we
+        # don't want to make the user wait for it on every record.
+        background.add_task(_embed_event_safe, event.id, event.summary)
         return EventOut.from_event(event)
     finally:
         conn.close()
@@ -177,3 +237,400 @@ def list_events(
     finally:
         conn.close()
     return [EventOut.from_row(row) for row in rows]
+
+
+# ---- Phase 1: signals + heatmap routes -------------------------------
+
+
+class SignalOut(BaseModel):
+    id: str
+    child_id: str
+    signal_type: str
+    domains: list[str]
+    intensity: float
+    child_age_months: int
+    delta_from_last_period: float | None
+    confidence: float
+    first_seen_at: str
+    last_seen_at: str
+    evidence_event_ids: list[str]
+    status: str
+    notes: str
+
+    @classmethod
+    def from_signal(cls, sig: Signal) -> SignalOut:
+        return cls(
+            id=sig.id,
+            child_id=sig.child_id,
+            signal_type=sig.signal_type,
+            domains=sig.domains,
+            intensity=sig.intensity,
+            child_age_months=sig.child_age_months,
+            delta_from_last_period=sig.delta_from_last_period,
+            confidence=sig.confidence,
+            first_seen_at=sig.first_seen_at,
+            last_seen_at=sig.last_seen_at,
+            evidence_event_ids=sig.evidence_event_ids,
+            status=sig.status,
+            notes=sig.notes,
+        )
+
+
+class HeatmapCellOut(BaseModel):
+    age_months: int
+    domain: str
+    intensity: float
+    event_count: int
+
+    @classmethod
+    def from_cell(cls, c: HeatmapCell) -> HeatmapCellOut:
+        return cls(
+            age_months=c.age_months,
+            domain=c.domain,
+            intensity=c.intensity,
+            event_count=c.event_count,
+        )
+
+
+def get_signal_extractor() -> SignalExtractor:
+    return SignalExtractor()
+
+
+@app.get("/signals", response_model=list[SignalOut])
+def list_signals(
+    child_id: Annotated[str, Query(min_length=1, max_length=64)],
+    status: Annotated[str | None, Query(max_length=16)] = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+) -> list[SignalOut]:
+    """List signals for a child, newest first.
+
+    `status` filter is exact-match against the closed set
+    {active, dormant, dismissed}; missing → all.
+    """
+    sql = """
+        SELECT id, child_id, signal_type, domains_json, intensity,
+               child_age_months, delta_from_last_period, confidence,
+               first_seen_at, last_seen_at, evidence_event_ids_json,
+               status, notes
+        FROM signals
+        WHERE child_id = ?
+    """
+    params: list[object] = [child_id]
+    if status is not None:
+        sql += " AND status = ?"
+        params.append(status)
+    sql += " ORDER BY last_seen_at DESC, id DESC LIMIT ?"
+    params.append(limit)
+
+    conn = db_module.get_conn()
+    try:
+        rows = conn.execute(sql, params).fetchall()
+    finally:
+        conn.close()
+    return [SignalOut.from_signal(Signal.from_row(dict(r))) for r in rows]
+
+
+@app.post("/signals/extract", response_model=list[SignalOut], status_code=201)
+def extract_signals(
+    child_id: Annotated[str, Query(min_length=1, max_length=64)],
+    extractor: Annotated[SignalExtractor, Depends(get_signal_extractor)],
+    window_days: Annotated[int, Query(ge=1, le=90)] = 14,
+) -> list[SignalOut]:
+    """Manual trigger for the signal extractor.
+
+    PRD §2.1#2: extraction is NOT cron-driven in Phase 1; the parent
+    (or the backfill script) decides when to refresh the signal layer.
+    """
+    try:
+        signals = extractor.extract_for_child(
+            child_id=child_id, window_days=window_days
+        )
+    except SignalExtractorError as e:
+        # "child not found" maps to 404, everything else to 502 (the LLM blew up).
+        if "not found" in str(e):
+            raise HTTPException(status_code=404, detail=str(e)) from e
+        raise HTTPException(status_code=502, detail=f"Extractor failed: {e}") from e
+    return [SignalOut.from_signal(s) for s in signals]
+
+
+# ---- Phase 2: weekly insights + feedback -----------------------------
+
+
+class InsightSectionOut(BaseModel):
+    axis: Literal["highlight", "change_over_time", "next_week_focus", "open_questions"]
+    title: str
+    body: str
+    sources_used: list[str]
+
+    @classmethod
+    def from_section(cls, s: InsightSection) -> InsightSectionOut:
+        return cls(
+            axis=s.axis,
+            title=s.title,
+            body=s.body,
+            sources_used=list(s.sources_used),
+        )
+
+
+class WeeklyInsightOut(BaseModel):
+    id: str
+    child_id: str
+    week_start: str
+    week_end: str
+    version: int
+    child_age_months: int
+    sections: list[InsightSectionOut]
+    open_questions: list[str]
+    sources_used: list[str]
+    backend: str
+    model_used: str
+    tokens_in: int
+    tokens_out: int
+    created_at: str
+
+    @classmethod
+    def from_row(cls, row: sqlite3.Row) -> WeeklyInsightOut:
+        sections_raw = json.loads(row["sections_json"])
+        return cls(
+            id=row["id"],
+            child_id=row["child_id"],
+            week_start=row["week_start"],
+            week_end=row["week_end"],
+            version=row["version"],
+            child_age_months=row["child_age_months"],
+            sections=[InsightSectionOut(**s) for s in sections_raw],
+            open_questions=json.loads(row["open_questions_json"]),
+            sources_used=json.loads(row["sources_used_json"]),
+            backend=row["backend"],
+            model_used=row["model_used"],
+            tokens_in=row["tokens_in"],
+            tokens_out=row["tokens_out"],
+            created_at=row["created_at"],
+        )
+
+
+class GenerateInsightRequest(BaseModel):
+    child_id: str = Field(min_length=1, max_length=64)
+    week_start: str = Field(min_length=10, max_length=10)  # YYYY-MM-DD
+    backend: Literal["claude", "local-fallback"] = "claude"
+
+
+class FeedbackRequest(BaseModel):
+    section_idx: int = Field(ge=0, le=15)
+    accuracy: Literal["accurate", "inaccurate", "unsure"] | None = None
+    value: Literal["inspiring", "unhelpful", "missed_point"] | None = None
+    free_text: str | None = Field(default=None, max_length=500)
+
+
+class FeedbackOut(BaseModel):
+    id: str
+    insight_id: str
+    section_idx: int
+    accuracy: str | None
+    value: str | None
+    free_text: str | None
+    created_at: str
+
+
+def _next_version(conn: sqlite3.Connection, child_id: str, week_start: str) -> int:
+    """PRD §3.5: regeneration bumps version. Find the max + 1."""
+    row = conn.execute(
+        """
+        SELECT COALESCE(MAX(version), 0) AS v
+        FROM weekly_insights
+        WHERE child_id = ? AND week_start = ?
+        """,
+        (child_id, week_start),
+    ).fetchone()
+    return int(row["v"]) + 1
+
+
+def _persist_insight(
+    conn: sqlite3.Connection,
+    *,
+    insight: WeeklyInsight,
+    version: int,
+) -> str:
+    """Write a WeeklyInsight to disk. Returns the row's primary key.
+
+    The Agent layer mints its own UUID4 for `insight.id`; we ALWAYS use
+    that as the row PK so callers can correlate the response and the row.
+    """
+    with db_module.transactional(conn):
+        conn.execute(
+            """
+            INSERT INTO weekly_insights
+              (id, child_id, week_start, week_end, version,
+               child_age_months, sections_json, open_questions_json,
+               sources_used_json, backend, model_used, tokens_in, tokens_out)
+            VALUES
+              (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                insight.id,
+                insight.child_id,
+                insight.week_start,
+                insight.week_end,
+                version,
+                insight.child_age_months,
+                json.dumps(
+                    [s.model_dump() for s in insight.sections],
+                    ensure_ascii=False,
+                ),
+                json.dumps(insight.open_questions, ensure_ascii=False),
+                json.dumps(insight.sources_used, ensure_ascii=False),
+                insight.backend,
+                insight.model_used,
+                insight.tokens_in,
+                insight.tokens_out,
+            ),
+        )
+    return insight.id
+
+
+@app.post("/insights/generate", response_model=WeeklyInsightOut, status_code=201)
+def generate_insight(body: GenerateInsightRequest) -> WeeklyInsightOut:
+    """Compose + persist a weekly insight for one (child, week).
+
+    PRD §2.1#6: parent-triggered, NOT a cron. Same week regenerated with
+    a different version (UNIQUE INDEX ON child_id, week_start, version).
+    """
+    try:
+        week_start = dt.date.fromisoformat(body.week_start)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=422,
+            detail=f"week_start must be YYYY-MM-DD, got {body.week_start!r}",
+        ) from e
+
+    conn = db_module.get_conn()
+    try:
+        # Build the compressed context (this is also where the child-not-found
+        # and non-Monday checks live).
+        try:
+            ctx = compress_week_context(body.child_id, week_start, conn=conn)
+        except ContextCompressorError as e:
+            status = 404 if "not found" in str(e) else 422
+            raise HTTPException(status_code=status, detail=str(e)) from e
+
+        # Run the writer. InsightWriter handles retry+degrade internally,
+        # so we only see InsightWriterError if `_load_prompt` itself fails.
+        try:
+            insight = write_weekly_insight(ctx, backend=body.backend)
+        except InsightWriterError as e:
+            raise HTTPException(
+                status_code=502, detail=f"Writer failed: {e}"
+            ) from e
+
+        version = _next_version(conn, body.child_id, body.week_start)
+        _persist_insight(conn, insight=insight, version=version)
+
+        # Read back so the response includes server-side `created_at`.
+        row = conn.execute(
+            "SELECT * FROM weekly_insights WHERE id = ?", (insight.id,)
+        ).fetchone()
+        return WeeklyInsightOut.from_row(row)
+    finally:
+        conn.close()
+
+
+@app.get("/insights", response_model=list[WeeklyInsightOut])
+def list_insights(
+    child_id: Annotated[str, Query(min_length=1, max_length=64)],
+    limit: Annotated[int, Query(ge=1, le=50)] = 12,
+) -> list[WeeklyInsightOut]:
+    conn = db_module.get_conn()
+    try:
+        rows = conn.execute(
+            """
+            SELECT * FROM weekly_insights
+            WHERE child_id = ?
+            ORDER BY created_at DESC, id DESC
+            LIMIT ?
+            """,
+            (child_id, limit),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [WeeklyInsightOut.from_row(r) for r in rows]
+
+
+@app.get("/insights/{insight_id}", response_model=WeeklyInsightOut)
+def get_insight(insight_id: str) -> WeeklyInsightOut:
+    conn = db_module.get_conn()
+    try:
+        row = conn.execute(
+            "SELECT * FROM weekly_insights WHERE id = ?", (insight_id,)
+        ).fetchone()
+    finally:
+        conn.close()
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"insight {insight_id!r} not found")
+    return WeeklyInsightOut.from_row(row)
+
+
+@app.post("/insights/{insight_id}/feedback", response_model=FeedbackOut, status_code=201)
+def post_feedback(insight_id: str, body: FeedbackRequest) -> FeedbackOut:
+    """PRD §3.6: section-level feedback. accuracy/value both nullable
+    (parent may submit only one dimension)."""
+    if body.accuracy is None and body.value is None and not body.free_text:
+        raise HTTPException(
+            status_code=422,
+            detail="Provide at least one of accuracy / value / free_text.",
+        )
+
+    conn = db_module.get_conn()
+    try:
+        ins = conn.execute(
+            "SELECT id FROM weekly_insights WHERE id = ?", (insight_id,)
+        ).fetchone()
+        if ins is None:
+            raise HTTPException(
+                status_code=404, detail=f"insight {insight_id!r} not found"
+            )
+        fb_id = uuid.uuid4().hex
+        with db_module.transactional(conn):
+            conn.execute(
+                """
+                INSERT INTO insight_feedback
+                  (id, insight_id, section_idx, accuracy, value, free_text)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    fb_id,
+                    insight_id,
+                    body.section_idx,
+                    body.accuracy,
+                    body.value,
+                    body.free_text,
+                ),
+            )
+        row = conn.execute(
+            "SELECT * FROM insight_feedback WHERE id = ?", (fb_id,)
+        ).fetchone()
+    finally:
+        conn.close()
+    return FeedbackOut(
+        id=row["id"],
+        insight_id=row["insight_id"],
+        section_idx=row["section_idx"],
+        accuracy=row["accuracy"],
+        value=row["value"],
+        free_text=row["free_text"],
+        created_at=row["created_at"],
+    )
+
+
+@app.get("/heatmap", response_model=list[HeatmapCellOut])
+def get_heatmap(
+    child_id: Annotated[str, Query(min_length=1, max_length=64)],
+    domains: Annotated[list[str] | None, Query()] = None,
+) -> list[HeatmapCellOut]:
+    """Per-(child_age_months, domain) intensity grid.
+
+    PRD §2.1#5: x-axis is **child age in months**, NOT calendar date.
+    The aggregation lives in `signal_delta.heatmap_data`; the route is
+    a thin shim.
+    """
+    cells = heatmap_data(child_id, domains=domains)
+    return [HeatmapCellOut.from_cell(c) for c in cells]

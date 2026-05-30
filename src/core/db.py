@@ -5,6 +5,18 @@ Phase 0 scope (per prd/phase0-skeleton.md §2.1):
   - Three primitives: init_db(), get_conn(), transactional()
   - sqlite-vec is loaded but Phase 0 does not write embeddings.
 
+Phase 1 additions (per prd/phase1-signals.md §2.1#1, decisions/0002):
+  - Table: signals (the aggregation layer above raw events)
+  - Strategy: append-to-SCHEMA_SQL + CREATE IF NOT EXISTS, no migration
+    framework yet. Pre-MVP, no real user data to preserve.
+
+Phase 2 additions (per prd/phase2-weekly-insight.md §4):
+  - Table: weekly_insights (the cloud insight outputs)
+  - Table: insight_feedback (multi-dim feedback per section, no 采纳率)
+  - Same append-to-SCHEMA_SQL strategy. UUID PK + (child_id, week_start,
+    version) unique index supports re-generation without seq collisions
+    (PRD §3.5 — Cowork裁定).
+
 The DB path is taken from BGH_DB env var (default ./data/babygrow.db) so
 tests can point it at a tmpdir.
 """
@@ -77,6 +89,79 @@ CREATE TABLE IF NOT EXISTS usage_log (
 );
 
 CREATE INDEX IF NOT EXISTS idx_usage_ts ON usage_log(ts);
+
+-- Phase 1: signals (aggregated patterns, not raw events). Per decisions/0002,
+-- we append-and-CREATE-IF-NOT-EXISTS rather than introduce a migration tool;
+-- pre-MVP single-user, no live data to preserve. PRD: phase1-signals §2.1#1.
+CREATE TABLE IF NOT EXISTS signals (
+    id                       TEXT PRIMARY KEY,
+    child_id                 TEXT NOT NULL REFERENCES children(id) ON DELETE CASCADE,
+    signal_type              TEXT NOT NULL,
+        -- interest_pattern | emotion_pattern | skill_pattern | anomaly | growth_leap
+    domains_json             TEXT NOT NULL DEFAULT '[]',
+    intensity                REAL NOT NULL,             -- 0.0-1.0
+    child_age_months         INTEGER NOT NULL,          -- frozen at signal birth
+    delta_from_last_period   REAL,                      -- nullable: prior window sparse
+    confidence               REAL NOT NULL,             -- 0.0-1.0
+    first_seen_at            TEXT NOT NULL,             -- ISO 8601
+    last_seen_at             TEXT NOT NULL,             -- ISO 8601
+    evidence_event_ids_json  TEXT NOT NULL,             -- JSON array of event ids, length >= 2
+    status                   TEXT NOT NULL DEFAULT 'active',
+        -- active | dormant | dismissed
+    notes                    TEXT NOT NULL DEFAULT '',
+    created_at               TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_signals_child_first_seen
+    ON signals(child_id, first_seen_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_signals_child_status
+    ON signals(child_id, status);
+
+-- Phase 2: weekly insights (cloud writer output) + per-section feedback.
+-- Per decisions/0002: append-to-SCHEMA_SQL. PRD §3.5: UUID4 PK + version
+-- column so re-generating the same week (e.g. after a prompt tweak) works
+-- without sequence collisions. Business-uniqueness: (child_id, week_start,
+-- version). PRD §4.1 lists the column shapes; we mirror them here.
+CREATE TABLE IF NOT EXISTS weekly_insights (
+    id                       TEXT PRIMARY KEY,            -- UUID4
+    child_id                 TEXT NOT NULL REFERENCES children(id) ON DELETE CASCADE,
+    week_start               TEXT NOT NULL,               -- ISO date (Mon, local tz)
+    week_end                 TEXT NOT NULL,               -- ISO date (next Mon, exclusive)
+    version                  INTEGER NOT NULL DEFAULT 1,  -- +1 on regenerate
+    child_age_months         INTEGER NOT NULL,            -- frozen at write time
+    sections_json            TEXT NOT NULL,               -- list[InsightSection]
+    open_questions_json      TEXT NOT NULL,               -- list[str]
+    sources_used_json        TEXT NOT NULL,               -- list of signal/event ids
+    backend                  TEXT NOT NULL,               -- claude | local-fallback | remote-local
+    model_used               TEXT NOT NULL,
+    tokens_in                INTEGER NOT NULL,
+    tokens_out               INTEGER NOT NULL,
+    created_at               TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_weekly_insights_child_week_ver
+    ON weekly_insights(child_id, week_start, version);
+
+CREATE INDEX IF NOT EXISTS idx_weekly_insights_child_created
+    ON weekly_insights(child_id, created_at DESC);
+
+-- PRD §3.6: feedback locates to section level, not paragraph anchor.
+-- accuracy/value are nullable (parent may submit only one dimension).
+-- ON DELETE CASCADE keeps the table tidy when a regenerated insight
+-- supersedes the old one and the operator chooses to drop it.
+CREATE TABLE IF NOT EXISTS insight_feedback (
+    id                       TEXT PRIMARY KEY,            -- UUID4
+    insight_id               TEXT NOT NULL REFERENCES weekly_insights(id) ON DELETE CASCADE,
+    section_idx              INTEGER NOT NULL,            -- 0-based
+    accuracy                 TEXT,                        -- accurate | inaccurate | unsure | NULL
+    value                    TEXT,                        -- inspiring | unhelpful | missed_point | NULL
+    free_text                TEXT,
+    created_at               TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_insight_feedback_insight
+    ON insight_feedback(insight_id, section_idx);
 """
 
 
