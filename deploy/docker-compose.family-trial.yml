@@ -1,0 +1,58 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-babygrow}
+      POSTGRES_USER: ${POSTGRES_USER:-babygrow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-babygrow} -d ${POSTGRES_DB:-babygrow}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    environment:
+      BGH_DATABASE_URL: postgresql://${POSTGRES_USER:-babygrow}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/${POSTGRES_DB:-babygrow}
+      BGH_RUNTIME_DB_BACKEND: postgres
+      BGH_REQUIRE_FAMILY_AUTH: "1"
+      BGH_FAMILY_TRIAL_MAX_FAMILIES: ${BGH_FAMILY_TRIAL_MAX_FAMILIES:-10}
+      BGH_CORS_ORIGINS: ${BGH_CORS_ORIGINS:-http://localhost:3000}
+      BGH_LLM_BACKEND: local
+      BGH_OLLAMA_URL: http://ollama:11434
+      BGH_OLLAMA_MODEL: ${BGH_OLLAMA_MODEL:-qwen2.5:3b-instruct}
+      BGH_ANTHROPIC_API_KEY: ${BGH_ANTHROPIC_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    ports:
+      - "8000:8000"
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+      args:
+        NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://localhost:8000}
+    depends_on:
+      - api
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres_data:
+  ollama_data:

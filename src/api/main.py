@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import os
 import sqlite3
 import uuid
 from collections.abc import Mapping
@@ -56,13 +57,21 @@ app = FastAPI(
     description="Local-first parenting companion. Phase 1 — signals layer.",
 )
 
-# Phase 1 frontend runs on localhost:3000 by default. CORS opened wide
-# only for that origin — the API has zero auth in Phase 1 (single user,
-# local), so we don't want to throw the door open to file:// or random
-# extensions either.
+
+def _cors_origins() -> list[str]:
+    defaults = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    raw = os.environ.get("BGH_CORS_ORIGINS", "").strip()
+    if not raw:
+        return defaults
+    extra = [item.strip() for item in raw.split(",") if item.strip()]
+    return [*defaults, *extra]
+
+
+# Phase 2.5 family trial can run on a LAN host or a small cloud VM.
+# Additional origins are configured via BGH_CORS_ORIGINS.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=_cors_origins(),
     allow_methods=["*"],
     allow_headers=["*"],
 )

@@ -1,0 +1,17 @@
+.git
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+htmlcov
+.venv
+data
+reports/*.local.*
+web/node_modules
+web/.next
+web/out
+__pycache__
+*.pyc
+.env
+.env.*
+!.env.example

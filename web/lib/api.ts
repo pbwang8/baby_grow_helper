@@ -3,8 +3,17 @@
 
 import { getFamilyAccessCode, saveFamilySession } from "./family-session";
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
+function defaultApiBase(): string {
+  if (process.env.NEXT_PUBLIC_API_BASE) {
+    return process.env.NEXT_PUBLIC_API_BASE;
+  }
+  if (typeof window !== "undefined") {
+    return `${window.location.protocol}//${window.location.hostname}:8000`;
+  }
+  return "http://localhost:8000";
+}
+
+const API_BASE = defaultApiBase();
 
 // Phase 1 = single child. Hardcoding xiaoming keeps the UI free of a
 // child picker (PRD §2.2: "no user management"). When the user wants

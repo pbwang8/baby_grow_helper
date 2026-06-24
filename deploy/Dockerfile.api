@@ -1,0 +1,21 @@
+FROM python:3.11-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONUTF8=1 \
+    UV_CACHE_DIR=/tmp/uv-cache
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir uv
+
+COPY pyproject.toml uv.lock ./
+COPY src ./src
+RUN uv sync --frozen --no-dev
+RUN uv pip install --python .venv/bin/python "psycopg[binary]>=3.2"
+
+COPY migrations ./migrations
+COPY tests/fixtures ./tests/fixtures
+
+EXPOSE 8000
+
+CMD ["sh", "-c", "uv run --no-sync python -m src.core.migrations --backend postgres --apply && uv run --no-sync uvicorn src.api.main:app --host 0.0.0.0 --port 8000"]

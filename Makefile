@@ -28,7 +28,7 @@ export BGH_LLM_BACKEND
 export BGH_OLLAMA_MODEL
 
 .PHONY: install db-init db-migrate db-migrate-postgres family-list seed run test test-all lint fmt clean help \
-        web-install web-dev web-build web-lint
+        web-install web-dev web-build web-lint family-trial-up family-trial-down
 
 help:
 	@echo "BabyGrowHelper — Phase 0"
@@ -45,6 +45,8 @@ help:
 	@echo "  make lint      — ruff + mypy --strict"
 	@echo "  make fmt       — black + ruff --fix"
 	@echo "  make clean     — wipe caches and local DB"
+	@echo "  make family-trial-up — start Docker Compose family trial stack"
+	@echo "  make family-trial-down — stop Docker Compose family trial stack"
 
 install:
 	uv python install 3.11
@@ -107,3 +109,11 @@ web-build:
 
 web-lint:
 	cd web && $(WEB_PM) run lint && $(WEB_PM) run typecheck
+
+# ---- Phase 2.5 family trial deploy ---------------------------------------
+
+family-trial-up:
+	docker compose -f deploy/docker-compose.family-trial.yml up --build
+
+family-trial-down:
+	docker compose -f deploy/docker-compose.family-trial.yml down
