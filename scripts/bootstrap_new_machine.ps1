@@ -3,7 +3,9 @@ $ErrorActionPreference = "Stop"
 $Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 Set-Location $Root
 
-$env:UV_CACHE_DIR = Join-Path $env:TEMP "uv-cache"
+if (-not $env:UV_CACHE_DIR) {
+    $env:UV_CACHE_DIR = Join-Path $env:TEMP "uv-cache"
+}
 $env:PYTHONUTF8 = "1"
 
 foreach ($name in @(
@@ -119,7 +121,7 @@ Write-Host ""
 Write-Host "Run backend:"
 Write-Host "  cd `"$Root`""
 Write-Host "  `$env:PYTHONUTF8 = `"1`""
-Write-Host "  `$env:UV_CACHE_DIR = Join-Path `$env:TEMP `"uv-cache`""
+Write-Host "  `$env:UV_CACHE_DIR = `"$env:UV_CACHE_DIR`""
 Write-Host "  `$env:BGH_DB = `".\data\demo_xiaoming.db`""
 Write-Host "  uv run --no-sync uvicorn src.api.main:app --host 127.0.0.1 --port 8000 --reload"
 Write-Host ""

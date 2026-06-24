@@ -10,7 +10,7 @@ else
 fi
 cd "$ROOT_POSIX"
 
-export UV_CACHE_DIR="${TMPDIR:-/tmp}/uv-cache"
+export UV_CACHE_DIR="${UV_CACHE_DIR:-${TMPDIR:-/tmp}/uv-cache}"
 export PYTHONUTF8=1
 unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy NO_PROXY no_proxy || true
 

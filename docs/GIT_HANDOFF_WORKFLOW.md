@@ -106,3 +106,18 @@ PowerShell 下建议带上 UTF-8：
 ```powershell
 $env:PYTHONUTF8 = "1"
 ```
+
+如果 C 盘空间紧张，建议把工具链、缓存和模型权重放到 D 盘，并设置用户级环境变量：
+
+```powershell
+[Environment]::SetEnvironmentVariable("UV_CACHE_DIR", "D:\Dev\cache\uv", "User")
+[Environment]::SetEnvironmentVariable("UV_PYTHON_INSTALL_DIR", "D:\Dev\python\uv", "User")
+[Environment]::SetEnvironmentVariable("OLLAMA_MODELS", "D:\Dev\ollama\models", "User")
+[Environment]::SetEnvironmentVariable("npm_config_cache", "D:\Dev\cache\npm", "User")
+[Environment]::SetEnvironmentVariable("PIP_CACHE_DIR", "D:\Dev\cache\pip", "User")
+[Environment]::SetEnvironmentVariable("HF_HOME", "D:\Dev\cache\huggingface", "User")
+[Environment]::SetEnvironmentVariable("TORCH_HOME", "D:\Dev\cache\torch", "User")
+[Environment]::SetEnvironmentVariable("PYTHONUTF8", "1", "User")
+```
+
+新终端会自动继承这些设置；当前终端需要手动设置一次或重开。
