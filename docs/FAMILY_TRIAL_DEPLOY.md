@@ -13,6 +13,7 @@
 - 一个能被手机访问到的地址
   - 同一 Wi-Fi：电脑局域网 IP，例如 `192.168.1.23`
   - 小范围远程试用：一台云服务器 + 域名/HTTPS 反代
+- Ollama 已在宿主机运行，并已拉取 `qwen2.5:3b-instruct`
 
 ## 2. 配置环境
 
@@ -26,6 +27,7 @@ BGH_FAMILY_TRIAL_MAX_FAMILIES=10
 NEXT_PUBLIC_API_BASE=http://192.168.1.23:8000
 BGH_CORS_ORIGINS=http://192.168.1.23:3000
 
+BGH_OLLAMA_URL=http://host.docker.internal:11434
 BGH_OLLAMA_MODEL=qwen2.5:3b-instruct
 ```
 
@@ -46,8 +48,15 @@ docker compose -f deploy/docker-compose.family-trial.yml up --build
 第一次启动后，另开终端拉本地模型：
 
 ```bash
-docker compose -f deploy/docker-compose.family-trial.yml exec ollama \
-  ollama pull qwen2.5:3b-instruct
+ollama pull qwen2.5:3b-instruct
+```
+
+默认配置会让 Docker 里的 API 连接宿主机 Ollama：
+`http://host.docker.internal:11434`。如果确实要把 Ollama 也跑进 Docker，
+可以改用：
+
+```bash
+docker compose --profile container-ollama -f deploy/docker-compose.family-trial.yml up --build
 ```
 
 ## 4. 创建家庭访问码

@@ -97,6 +97,7 @@ clean:
 #   make web-install WEB_PM=pnpm
 
 WEB_PM ?= npm
+DOCKER ?= $(shell command -v docker 2>/dev/null || printf "/Applications/Docker.app/Contents/Resources/bin/docker")
 
 web-install:
 	cd web && $(WEB_PM) install
@@ -113,7 +114,7 @@ web-lint:
 # ---- Phase 2.5 family trial deploy ---------------------------------------
 
 family-trial-up:
-	docker compose -f deploy/docker-compose.family-trial.yml up --build
+	$(DOCKER) compose -f deploy/docker-compose.family-trial.yml up --build
 
 family-trial-down:
-	docker compose -f deploy/docker-compose.family-trial.yml down
+	$(DOCKER) compose -f deploy/docker-compose.family-trial.yml down

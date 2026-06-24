@@ -15,6 +15,7 @@ services:
 
   ollama:
     image: ollama/ollama:latest
+    profiles: ["container-ollama"]
     volumes:
       - ollama_data:/root/.ollama
     ports:
@@ -31,14 +32,12 @@ services:
       BGH_FAMILY_TRIAL_MAX_FAMILIES: ${BGH_FAMILY_TRIAL_MAX_FAMILIES:-10}
       BGH_CORS_ORIGINS: ${BGH_CORS_ORIGINS:-http://localhost:3000}
       BGH_LLM_BACKEND: local
-      BGH_OLLAMA_URL: http://ollama:11434
+      BGH_OLLAMA_URL: ${BGH_OLLAMA_URL:-http://host.docker.internal:11434}
       BGH_OLLAMA_MODEL: ${BGH_OLLAMA_MODEL:-qwen2.5:3b-instruct}
       BGH_ANTHROPIC_API_KEY: ${BGH_ANTHROPIC_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
-      ollama:
-        condition: service_started
     ports:
       - "8000:8000"
 
