@@ -23,6 +23,7 @@ import datetime as dt
 import json
 import sqlite3
 import uuid
+from collections.abc import Mapping
 from typing import Annotated, Literal
 
 from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query
@@ -44,6 +45,7 @@ from src.agents.signal_extractor import SignalExtractor, SignalExtractorError
 from src.core import db as db_module
 from src.core import embeddings as emb_module
 from src.core import family as family_module
+from src.core import runtime_store as store_module
 from src.core.llm_client import LLMClient
 from src.core.models import Signal
 from src.core.signal_delta import HeatmapCell, heatmap_data
@@ -77,7 +79,14 @@ def get_llm_client() -> LLMClient:
     return LLMClient()
 
 
+def get_family_event_store() -> store_module.FamilyEventStore:
+    return store_module.get_family_event_store()
+
+
 def get_current_family_id(
+    store: Annotated[
+        store_module.FamilyEventStore, Depends(get_family_event_store)
+    ],
     x_family_code: Annotated[
         str | None, Header(alias=family_module.FAMILY_CODE_HEADER)
     ] = None,
@@ -95,11 +104,7 @@ def get_current_family_id(
             status_code=401,
             detail=f"Missing {family_module.FAMILY_CODE_HEADER} header.",
         )
-    conn = db_module.get_conn()
-    try:
-        found = family_module.find_family_by_access_code(conn, x_family_code)
-    finally:
-        conn.close()
+    found = store.authenticate_family(x_family_code)
     if found is None:
         raise HTTPException(status_code=403, detail="Invalid family access code.")
     return found[0]
@@ -141,18 +146,18 @@ class EventOut(BaseModel):
         )
 
     @classmethod
-    def from_row(cls, row: sqlite3.Row) -> EventOut:
+    def from_row(cls, row: sqlite3.Row | Mapping[str, object]) -> EventOut:
         return cls(
-            id=row["id"],
-            child_id=row["child_id"],
-            timestamp=row["timestamp"],
-            raw_text=row["raw_text"],
-            summary=row["summary"],
-            type=row["type"],
-            domains=json.loads(row["domains_json"]),
-            emotions=json.loads(row["emotions_json"]),
-            context=row["context"] or "",
-            model_used=row["model_used"] or "",
+            id=_row_str(row, "id"),
+            child_id=_row_str(row, "child_id"),
+            timestamp=_row_str(row, "timestamp"),
+            raw_text=_row_str(row, "raw_text"),
+            summary=_row_str(row, "summary"),
+            type=_row_str(row, "type"),
+            domains=_json_list(row["domains_json"]),
+            emotions=_json_list(row["emotions_json"]),
+            context=_row_str(row, "context"),
+            model_used=_row_str(row, "model_used"),
         )
 
 
@@ -169,6 +174,20 @@ class FamilyAuthRequest(BaseModel):
 class FamilyAuthOut(BaseModel):
     family_id: str
     family_name: str
+
+
+def _row_str(row: sqlite3.Row | Mapping[str, object], key: str) -> str:
+    value = row[key]
+    if value is None:
+        return ""
+    return str(value)
+
+
+def _json_list(value: object) -> list[str]:
+    loaded = json.loads(value) if isinstance(value, str) else value
+    if not isinstance(loaded, list):
+        return []
+    return [str(item) for item in loaded]
 
 
 # ---- routes ----------------------------------------------------------
@@ -232,17 +251,18 @@ def _require_child_visible(
 
 
 @app.post("/auth/family", response_model=FamilyAuthOut)
-def authenticate_family(body: FamilyAuthRequest) -> FamilyAuthOut:
+def authenticate_family(
+    body: FamilyAuthRequest,
+    store: Annotated[
+        store_module.FamilyEventStore, Depends(get_family_event_store)
+    ],
+) -> FamilyAuthOut:
     """Verify a family access code and return the scoped family id.
 
     This is the Phase 2.5 minimal login primitive. It is intentionally not a
     commercial account system.
     """
-    conn = db_module.get_conn()
-    try:
-        found = family_module.find_family_by_access_code(conn, body.access_code)
-    finally:
-        conn.close()
+    found = store.authenticate_family(body.access_code)
     if found is None:
         raise HTTPException(status_code=403, detail="Invalid family access code.")
     family_id, family_name = found
@@ -255,68 +275,62 @@ def create_event(
     background: BackgroundTasks,
     recorder: Annotated[Recorder, Depends(get_recorder)],
     family_id: Annotated[str | None, Depends(get_current_family_id)],
+    store: Annotated[
+        store_module.FamilyEventStore, Depends(get_family_event_store)
+    ],
     x_user_id: Annotated[str | None, Header(alias="X-User-Id")] = None,
 ) -> EventOut:
     # X-User-Id is reserved for v1 auth — read but unused in Phase 0.
     _ = x_user_id
 
-    conn = db_module.get_conn()
+    if not store.child_exists(child_id=body.child_id, family_id=family_id):
+        raise HTTPException(
+            status_code=404,
+            detail=f"child_id={body.child_id!r} not found. Run `make seed` first.",
+        )
+
     try:
-        child = _child_row(conn, child_id=body.child_id, family_id=family_id)
-        if child is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"child_id={body.child_id!r} not found. Run `make seed` first.",
-            )
+        event = recorder.record(child_id=body.child_id, raw_text=body.raw_text)
+    except RecorderError as e:
+        raise HTTPException(status_code=502, detail=f"Recorder failed: {e}") from e
 
-        try:
-            event = recorder.record(child_id=body.child_id, raw_text=body.raw_text)
-        except RecorderError as e:
-            raise HTTPException(status_code=502, detail=f"Recorder failed: {e}") from e
-
-        row = event.as_row()
-        with db_module.transactional(conn):
-            conn.execute(
-                """
-                INSERT INTO events
-                  (id, child_id, timestamp, raw_text, summary, type,
-                   domains_json, emotions_json, context, source, model_used)
-                VALUES
-                  (:id, :child_id, :timestamp, :raw_text, :summary, :type,
-                   :domains_json, :emotions_json, :context, :source, :model_used)
-                """,
-                row,
-            )
+    store.insert_event(
+        store_module.EventRecord(
+            id=event.id,
+            child_id=event.child_id,
+            timestamp=event.timestamp,
+            raw_text=event.raw_text,
+            summary=event.summary,
+            type=event.type,
+            domains=tuple(event.domains),
+            emotions=tuple(event.emotions),
+            context=event.context,
+            source="manual",
+            model_used=event.model_used,
+        ),
+        family_id=family_id,
+    )
+    if store.supports_background_embeddings:
         # Fire-and-forget: embedding takes ~50-200ms on M-series CPU; we
         # don't want to make the user wait for it on every record.
         background.add_task(_embed_event_safe, event.id, event.summary)
-        return EventOut.from_event(event)
-    finally:
-        conn.close()
+    return EventOut.from_event(event)
 
 
 @app.get("/events", response_model=list[EventOut])
 def list_events(
     child_id: Annotated[str, Query(min_length=1, max_length=64)],
     family_id: Annotated[str | None, Depends(get_current_family_id)],
+    store: Annotated[
+        store_module.FamilyEventStore, Depends(get_family_event_store)
+    ],
     limit: Annotated[int, Query(ge=1, le=200)] = 20,
 ) -> list[EventOut]:
-    conn = db_module.get_conn()
-    try:
-        _require_child_visible(conn, child_id=child_id, family_id=family_id)
-        rows = conn.execute(
-            """
-            SELECT id, child_id, timestamp, raw_text, summary, type,
-                   domains_json, emotions_json, context, model_used
-            FROM events
-            WHERE child_id = ?
-            ORDER BY timestamp DESC, id DESC
-            LIMIT ?
-            """,
-            (child_id, limit),
-        ).fetchall()
-    finally:
-        conn.close()
+    if family_id is not None and not store.child_exists(
+        child_id=child_id, family_id=family_id
+    ):
+        raise HTTPException(status_code=404, detail=f"child_id={child_id!r} not found")
+    rows = store.list_events(child_id=child_id, family_id=family_id, limit=limit)
     return [EventOut.from_row(row) for row in rows]
 
 
