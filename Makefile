@@ -27,7 +27,7 @@ export BGH_DB
 export BGH_LLM_BACKEND
 export BGH_OLLAMA_MODEL
 
-.PHONY: install db-init seed run test test-all lint fmt clean help \
+.PHONY: install db-init db-migrate db-migrate-postgres seed run test test-all lint fmt clean help \
         web-install web-dev web-build web-lint
 
 help:
@@ -35,6 +35,8 @@ help:
 	@echo ""
 	@echo "  make install   — pull Python 3.11 + sync deps via uv"
 	@echo "  make db-init   — initialize SQLite schema at $(BGH_DB)"
+	@echo "  make db-migrate — apply SQLite migrations at $(BGH_DB)"
+	@echo "  make db-migrate-postgres — apply Postgres migrations via BGH_DATABASE_URL"
 	@echo "  make seed      — ensure child=yaoyao exists"
 	@echo "  make run       — launch FastAPI on $(BGH_HOST):$(BGH_PORT)"
 	@echo "  make test      — unit + snapshot tests (no real Ollama)"
@@ -50,6 +52,12 @@ install:
 db-init:
 	@mkdir -p $(dir $(BGH_DB))
 	$(PY) python -m src.core.db --init
+
+db-migrate:
+	$(PY) python -m src.core.migrations --backend sqlite --database $(BGH_DB) --apply
+
+db-migrate-postgres:
+	$(PY) python -m src.core.migrations --backend postgres --apply
 
 seed: db-init
 	$(PY) python -m src.core.seed
