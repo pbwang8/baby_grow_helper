@@ -77,6 +77,21 @@
 
 ---
 
+### Phase 2.5：家庭手机内测（1-2 周）
+**目标**：把本机实验室里的 MVP 变成家庭成员能在华为/安卓手机上试用的内测产品。
+
+里程碑：
+- [ ] M2.5.1 数据库演进 ADR + 家庭内测 PRD 收口
+- [ ] M2.5.2 服务端 Postgres + migration 机制
+- [ ] M2.5.3 最小家庭访问控制（访问码 / magic link 二选一）
+- [ ] M2.5.4 手机 Web / PWA 体验优化
+- [ ] M2.5.5 公网 HTTPS 部署 + 家庭真机 smoke test
+
+**模式建议**：Cowork/作者确认家庭内测边界，Code 实现部署与数据层。
+**完成判定**：家庭成员不需要打开终端，只用手机浏览器即可记录事件、查看时间轴/周报，并且真实数据不进入 Git、不困在作者某台电脑的 SQLite 文件里。
+
+---
+
 ### Phase 3：培养建议 + 知识库（2 周）
 **目标**：用知识库 RAG 把洞察转化为可执行建议
 
@@ -159,6 +174,7 @@ Week 1            Week 2-3          Week 4-5          Week 6-7         Week 8
 | Phase 0 | ✅ 完成 | `reports/phase0-baseline.md` | M0.4 合并到 Phase 1；recorder 9/10 valid + 9/10 type-match @ qwen2.5:3b-instruct |
 | Phase 1 | ✅ 完成 | `reports/phase1-baseline.md` | recall 3/3 + precision ≥60% on golden fixture；BGE 512d <40ms warm；前端三屏跑通；137 tests / 89.79% cov |
 | Phase 2 | ✅ 完成 | `reports/phase2-baseline.md` | 全链路 e2e（compressor → writer → API → /weekly）通过 PRD 七项闸门；compressor token 占 4k 上限 ~25%；e2e 全程 mock LLM 零云端花费。A/B Sonnet↔Haiku 与真云端烟雾测拆到 Phase 3 retro 之前的独立任务卡 |
+| Phase 2.5 | 🟡 规划中 | `prd/phase2_5-family-mobile-mvp.md` | 家庭手机内测桥梁：手机 Web/PWA + 最小访问控制 + Postgres 服务端数据源；不做 APK/支付/公开注册 |
 | Phase 3 | ⬜ 未开始 | — | — |
 | Phase 4 | ⬜ 未开始 | — | — |
 
@@ -169,3 +185,4 @@ Week 1            Week 2-3          Week 4-5          Week 6-7         Week 8
 _最后更新：2026-05-25 — Phase 1 实现完成（Code 模式），状态翻 ✅。_
 _2026-05-26 — Cowork 审定 Phase 2 PRD，状态翻 🟡 进行中；ADR-0003 本地兜底 chain + 远端可迁移已 accepted。_
 _2026-05-31 — Phase 2 实现里程碑收口（reports/phase2-baseline.md），Cowork 翻 ✅；同步授权一次真云端 Sonnet 4 烟雾测，授权卡见 `prd/inbox/phase2-cloud-smoke-test.md`。Phase 3 PRD 待起草。_
+_2026-06-24 — Phase 2.5 家庭手机内测进入规划：数据库演进 ADR-0004 + PRD 草案已起。_
