@@ -9,6 +9,7 @@
 
 - Docker Desktop 或 Docker Engine
 - Git
+- 能拉取 Docker 镜像，包括 `pgvector/pgvector:pg16`
 - 一个能被手机访问到的地址
   - 同一 Wi-Fi：电脑局域网 IP，例如 `192.168.1.23`
   - 小范围远程试用：一台云服务器 + 域名/HTTPS 反代
