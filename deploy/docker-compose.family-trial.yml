@@ -46,7 +46,9 @@ services:
       context: ..
       dockerfile: deploy/Dockerfile.web
       args:
-        NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-http://localhost:8000}
+        NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:-/api}
+    environment:
+      API_INTERNAL_BASE: ${API_INTERNAL_BASE:-http://api:8000}
     depends_on:
       - api
     ports:

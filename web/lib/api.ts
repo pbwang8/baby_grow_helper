@@ -1,5 +1,6 @@
 // Thin client for the FastAPI surface (src/api/main.py).
-// Local app defaults to localhost:8000 unless NEXT_PUBLIC_API_BASE is set.
+// Browser calls default to the same-origin Next.js proxy at /api. The proxy
+// keeps mobile/public trial access on one URL and avoids browser CORS issues.
 
 import {
   getFamilyAccessCode,
@@ -11,10 +12,7 @@ function defaultApiBase(): string {
   if (process.env.NEXT_PUBLIC_API_BASE) {
     return process.env.NEXT_PUBLIC_API_BASE;
   }
-  if (typeof window !== "undefined") {
-    return `${window.location.protocol}//${window.location.hostname}:8000`;
-  }
-  return "http://localhost:8000";
+  return "/api";
 }
 
 const API_BASE = defaultApiBase();
@@ -81,7 +79,7 @@ async function jsonFetch<T>(
   path: string,
   init?: RequestInit & { searchParams?: Record<string, string | number | string[]> }
 ): Promise<T> {
-  const url = new URL(path, API_BASE);
+  const url = buildApiUrl(path);
   if (init?.searchParams) {
     for (const [k, v] of Object.entries(init.searchParams)) {
       if (Array.isArray(v)) {
@@ -111,6 +109,15 @@ async function jsonFetch<T>(
     throw new Error(`${res.status} ${detail}`);
   }
   return res.json() as Promise<T>;
+}
+
+function buildApiUrl(path: string): URL {
+  if (API_BASE.startsWith("/")) {
+    const origin =
+      typeof window === "undefined" ? "http://localhost:3000" : window.location.origin;
+    return new URL(`${API_BASE}${path}`, origin);
+  }
+  return new URL(path, API_BASE);
 }
 
 function familyHeader(): Record<string, string> {

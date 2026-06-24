@@ -98,6 +98,7 @@ clean:
 
 WEB_PM ?= npm
 DOCKER ?= $(shell command -v docker 2>/dev/null || printf "/Applications/Docker.app/Contents/Resources/bin/docker")
+COMPOSE_ENV_FILE ?= .env
 
 web-install:
 	cd web && $(WEB_PM) install
@@ -114,7 +115,7 @@ web-lint:
 # ---- Phase 2.5 family trial deploy ---------------------------------------
 
 family-trial-up:
-	$(DOCKER) compose -f deploy/docker-compose.family-trial.yml up --build
+	$(DOCKER) compose --env-file $(COMPOSE_ENV_FILE) -f deploy/docker-compose.family-trial.yml up --build
 
 family-trial-down:
-	$(DOCKER) compose -f deploy/docker-compose.family-trial.yml down
+	$(DOCKER) compose --env-file $(COMPOSE_ENV_FILE) -f deploy/docker-compose.family-trial.yml down

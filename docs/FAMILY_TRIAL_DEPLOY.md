@@ -23,18 +23,24 @@
 POSTGRES_PASSWORD=change-this-password
 BGH_FAMILY_TRIAL_MAX_FAMILIES=10
 
-# 同一 Wi-Fi 时，把 192.168.1.23 换成运行 Docker 的电脑 IP。
-NEXT_PUBLIC_API_BASE=http://192.168.1.23:8000
+# 浏览器只访问 Web；Web 通过同源 /api 代理转发到内部 API。
+NEXT_PUBLIC_API_BASE=/api
+API_INTERNAL_BASE=http://api:8000
+
+# 如果直接调试 FastAPI，可把允许来源加到这里；正常手机访问不需要直连 :8000。
 BGH_CORS_ORIGINS=http://192.168.1.23:3000
 
 BGH_OLLAMA_URL=http://host.docker.internal:11434
 BGH_OLLAMA_MODEL=qwen2.5:3b-instruct
 ```
 
-公开域名部署时，把上面两行换成实际域名，例如：
+公开域名部署时，仍然保持 `NEXT_PUBLIC_API_BASE=/api`。只需要让公网入口指向
+Web 服务；API 不需要单独暴露到公网。例如 Cloudflare Tunnel 只转发到
+`http://localhost:3000`。
+
+如果你确实要直接暴露 API 域名，才需要额外设置：
 
 ```bash
-NEXT_PUBLIC_API_BASE=https://api.example.com
 BGH_CORS_ORIGINS=https://app.example.com
 ```
 
@@ -42,7 +48,7 @@ BGH_CORS_ORIGINS=https://app.example.com
 
 ```bash
 cd /Users/wangpengbo/Documents/Claude/Projects/baby_grow_helper
-docker compose -f deploy/docker-compose.family-trial.yml up --build
+docker compose --env-file .env -f deploy/docker-compose.family-trial.yml up --build
 ```
 
 第一次启动后，另开终端拉本地模型：
@@ -56,7 +62,7 @@ ollama pull qwen2.5:3b-instruct
 可以改用：
 
 ```bash
-docker compose --profile container-ollama -f deploy/docker-compose.family-trial.yml up --build
+docker compose --env-file .env --profile container-ollama -f deploy/docker-compose.family-trial.yml up --build
 ```
 
 ## 4. 创建家庭访问码
@@ -65,7 +71,7 @@ docker compose --profile container-ollama -f deploy/docker-compose.family-trial.
 `family_admin` 创建；命令只会打印一次明文访问码，数据库只保存 hash。
 
 ```bash
-docker compose -f deploy/docker-compose.family-trial.yml exec api \
+docker compose --env-file .env -f deploy/docker-compose.family-trial.yml exec api \
   uv run --no-sync python -m src.scripts.family_admin create \
   --family-id fam_001 \
   --name "Alpha Family" \
@@ -77,7 +83,7 @@ docker compose -f deploy/docker-compose.family-trial.yml exec api \
 创建这个家庭的 child：
 
 ```bash
-docker compose -f deploy/docker-compose.family-trial.yml exec api \
+docker compose --env-file .env -f deploy/docker-compose.family-trial.yml exec api \
   uv run --no-sync python -m src.scripts.family_admin create-child \
   --child-id child_001 \
   --family-id fam_001 \
@@ -97,6 +103,16 @@ http://192.168.1.23:3000/login
 
 安卓/华为浏览器可以从浏览器菜单选择“添加到桌面”。manifest 已在
 `web/public/manifest.webmanifest`。
+
+不在同一 Wi-Fi 时，推荐先用 Cloudflare Tunnel：
+
+```bash
+cloudflared tunnel --url http://localhost:3000
+```
+
+Cloudflare 会给一个 `https://*.trycloudflare.com` 临时地址。把这个地址发给
+内测家庭，仍然输入家庭访问码登录。这个方案要求运行 Docker 的电脑保持开机和联网。
+更正式的内测再切到命名 Tunnel + 自有域名。
 
 ## 6. 当前边界
 
