@@ -158,7 +158,7 @@ Week 1            Week 2-3          Week 4-5          Week 6-7         Week 8
 |---|---|---|---|
 | Phase 0 | ✅ 完成 | `reports/phase0-baseline.md` | M0.4 合并到 Phase 1；recorder 9/10 valid + 9/10 type-match @ qwen2.5:3b-instruct |
 | Phase 1 | ✅ 完成 | `reports/phase1-baseline.md` | recall 3/3 + precision ≥60% on golden fixture；BGE 512d <40ms warm；前端三屏跑通；137 tests / 89.79% cov |
-| Phase 2 | 🟡 进行中 | `prd/phase2-weekly-insight.md` | Cowork 2026-05-26 审定通过；主模型先 Sonnet 4 周建上限再 A/B 切 Haiku；本地兜底 3B chain（[ADR-0003]）；evidence 引用硬约束；A/B/B'/C 盲测 4 周 |
+| Phase 2 | ✅ 完成 | `reports/phase2-baseline.md` | 全链路 e2e（compressor → writer → API → /weekly）通过 PRD 七项闸门；compressor token 占 4k 上限 ~25%；e2e 全程 mock LLM 零云端花费。A/B Sonnet↔Haiku 与真云端烟雾测拆到 Phase 3 retro 之前的独立任务卡 |
 | Phase 3 | ⬜ 未开始 | — | — |
 | Phase 4 | ⬜ 未开始 | — | — |
 
@@ -168,3 +168,4 @@ Week 1            Week 2-3          Week 4-5          Week 6-7         Week 8
 
 _最后更新：2026-05-25 — Phase 1 实现完成（Code 模式），状态翻 ✅。_
 _2026-05-26 — Cowork 审定 Phase 2 PRD，状态翻 🟡 进行中；ADR-0003 本地兜底 chain + 远端可迁移已 accepted。_
+_2026-05-31 — Phase 2 实现里程碑收口（reports/phase2-baseline.md），Cowork 翻 ✅；同步授权一次真云端 Sonnet 4 烟雾测，授权卡见 `prd/inbox/phase2-cloud-smoke-test.md`。Phase 3 PRD 待起草。_
