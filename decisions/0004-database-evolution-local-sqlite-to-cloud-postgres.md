@@ -90,8 +90,8 @@ SQLite 的开发 schema 可以继续保留，但不能成为云端 schema 的唯
 预期演进：
 
 ```text
-Phase 2.5: 1 个家庭内测
-  Postgres 单实例 + 最小 auth + PWA
+Phase 2.5: 邀请制 ≤10 个家庭内测
+  Postgres 单实例 + 最小 auth + PWA + family 级隔离
 
 v0.2: 10-100 个早期家庭
   Postgres + Alembic + 备份 + 每用户用量 cap

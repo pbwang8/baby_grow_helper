@@ -78,7 +78,7 @@
 ---
 
 ### Phase 2.5：家庭手机内测（1-2 周）
-**目标**：把本机实验室里的 MVP 变成家庭成员能在华为/安卓手机上试用的内测产品。
+**目标**：把本机实验室里的 MVP 变成邀请制 ≤10 个家庭能在华为/安卓手机上试用的内测产品。
 
 里程碑：
 - [x] M2.5.1 数据库演进 ADR + 家庭内测 PRD 收口
@@ -174,7 +174,7 @@ Week 1            Week 2-3          Week 4-5          Week 6-7         Week 8
 | Phase 0 | ✅ 完成 | `reports/phase0-baseline.md` | M0.4 合并到 Phase 1；recorder 9/10 valid + 9/10 type-match @ qwen2.5:3b-instruct |
 | Phase 1 | ✅ 完成 | `reports/phase1-baseline.md` | recall 3/3 + precision ≥60% on golden fixture；BGE 512d <40ms warm；前端三屏跑通；137 tests / 89.79% cov |
 | Phase 2 | ✅ 完成 | `reports/phase2-baseline.md` | 全链路 e2e（compressor → writer → API → /weekly）通过 PRD 七项闸门；compressor token 占 4k 上限 ~25%；e2e 全程 mock LLM 零云端花费。A/B Sonnet↔Haiku 与真云端烟雾测拆到 Phase 3 retro 之前的独立任务卡 |
-| Phase 2.5 | 🟡 进行中 | `prd/phase2_5-family-mobile-mvp.md` | ADR-0004 + PRD 已 accepted；访问码鉴权底座、Postgres 初始 schema 与 migration runner 已落地；下一步 Postgres runtime adapter + 手机 PWA |
+| Phase 2.5 | 🟡 进行中 | `prd/phase2_5-family-mobile-mvp.md` | 邀请制 ≤10 家庭内测；ADR-0004 + PRD 已 accepted；访问码鉴权底座、Postgres 初始 schema 与 migration runner 已落地；下一步 Postgres runtime adapter + 手机 PWA |
 | Phase 3 | ⬜ 未开始 | — | — |
 | Phase 4 | ⬜ 未开始 | — | — |
 

@@ -30,7 +30,7 @@ Phase 0-2 已经证明 BabyGrowHelper 的核心链路可以跑通：
 
 ## 2. Product Goal（目标）
 
-让家庭成员通过一个 HTTPS 地址，在华为/安卓手机浏览器里完成：
+让邀请制家庭成员通过一个 HTTPS 地址，在华为/安卓手机浏览器里完成：
 
 - 登录或输入家庭访问码
 - 选择孩子
@@ -42,6 +42,13 @@ Phase 0-2 已经证明 BabyGrowHelper 的核心链路可以跑通：
 体验目标：
 
 > 家人不需要懂技术，不需要打开终端，只要手机浏览器能用。
+
+内测规模：
+
+- 邀请制，不公开注册
+- 支持 **最多 10 个家庭**
+- 每个家庭先以家庭访问码进入
+- schema 支持多孩子，UI 首版可以先单孩子
 
 ## 3. In Scope（本次必须做）
 
@@ -171,6 +178,7 @@ Ollama-compatible local/remote model endpoint
 
 - 未授权请求不能读取事件
 - family A 不能读取 family B 的 `events/signals/weekly_insights`
+- 系统至少能 seed / 管理 10 个家庭访问码
 - 所有真实数据写入 Postgres，不写入 Git
 
 ### 5.3 数据保护
@@ -234,6 +242,7 @@ Phase 2.5 只实现 `family -> usage cap` 的基础，不实现支付。
 - migration 机制
 - `users/families/family_members` schema
 - 现有核心表增加 family/user 归属
+- seed/admin 工具可创建最多 10 个家庭访问码
 - SQLite 测试模式保留
 
 ### M2.5.3 Auth + API 隔离
@@ -281,10 +290,23 @@ Phase 2.5 只实现 `family -> usage cap` 的基础，不实现支付。
 - 部署路线：**云服务器 + Docker Compose**。本机公网隧道可用于临时调试，
   但不作为家庭内测的正式路径。
 - 访问控制：**家庭访问码**。先不接邮件/SMS/magic link。
+- 内测规模：**邀请制，最多 10 个家庭**。这不是公开 beta，也不做开放注册。
 - 多孩子：schema 支持多孩子，UI 首版先单孩子。
 - Postgres：允许使用托管 Postgres 或云服务器容器内 Postgres；实现层优先保持
   标准 Postgres，不绑定 BaaS。
 - 导出/删除：Phase 2.5 先提供管理员 API，UI 按钮可后置。
+
+## 11. Progress Reporting
+
+Code 模式每次阶段性回复都要说明距离最近目标的状态：
+
+```text
+最近目标：≤10 个家庭手机内测
+已完成：...
+还差：...
+下一步：...
+风险：...
+```
 
 ---
 
