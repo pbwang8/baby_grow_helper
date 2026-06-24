@@ -21,6 +21,7 @@ import uuid
 from typing import Final
 
 FAMILY_CODE_HEADER: Final[str] = "X-Family-Code"
+DEFAULT_TRIAL_FAMILY_CAP: Final[int] = 10
 
 _TRUE_VALUES: Final[frozenset[str]] = frozenset({"1", "true", "yes", "on"})
 _HASH_PREFIX: Final[str] = "bgh-family-code-v1:"
@@ -29,6 +30,22 @@ _HASH_PREFIX: Final[str] = "bgh-family-code-v1:"
 def family_auth_required() -> bool:
     """Return whether API routes should require a family access code."""
     return os.environ.get("BGH_REQUIRE_FAMILY_AUTH", "").strip().lower() in _TRUE_VALUES
+
+
+def trial_family_cap() -> int:
+    """Maximum invited families for Phase 2.5.
+
+    Defaults to 10 per PRD. Invalid env values deliberately fall back to the
+    default instead of crashing an admin command.
+    """
+    raw = os.environ.get("BGH_FAMILY_TRIAL_MAX_FAMILIES", "").strip()
+    if not raw:
+        return DEFAULT_TRIAL_FAMILY_CAP
+    try:
+        cap = int(raw)
+    except ValueError:
+        return DEFAULT_TRIAL_FAMILY_CAP
+    return max(1, cap)
 
 
 def hash_access_code(code: str) -> str:
@@ -68,6 +85,16 @@ def ensure_family(
         (family_id, name, hash_access_code(access_code)),
     )
     return family_id
+
+
+def family_exists(conn: sqlite3.Connection, family_id: str) -> bool:
+    row = conn.execute("SELECT 1 FROM families WHERE id = ?", (family_id,)).fetchone()
+    return row is not None
+
+
+def count_families(conn: sqlite3.Connection) -> int:
+    row = conn.execute("SELECT COUNT(*) AS n FROM families").fetchone()
+    return int(row["n"])
 
 
 def ensure_user(
