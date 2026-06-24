@@ -43,6 +43,7 @@ from src.agents.recorder import Recorder, RecorderError, StructuredEvent
 from src.agents.signal_extractor import SignalExtractor, SignalExtractorError
 from src.core import db as db_module
 from src.core import embeddings as emb_module
+from src.core import family as family_module
 from src.core.llm_client import LLMClient
 from src.core.models import Signal
 from src.core.signal_delta import HeatmapCell, heatmap_data
@@ -74,6 +75,34 @@ def get_recorder() -> Recorder:
 
 def get_llm_client() -> LLMClient:
     return LLMClient()
+
+
+def get_current_family_id(
+    x_family_code: Annotated[
+        str | None, Header(alias=family_module.FAMILY_CODE_HEADER)
+    ] = None,
+) -> str | None:
+    """Resolve the request family when Phase 2.5 family auth is enabled.
+
+    Local development keeps auth disabled by default so existing single-user
+    flows keep working. In deployed family mode, every protected route must
+    carry `X-Family-Code`.
+    """
+    if not family_module.family_auth_required():
+        return None
+    if not x_family_code:
+        raise HTTPException(
+            status_code=401,
+            detail=f"Missing {family_module.FAMILY_CODE_HEADER} header.",
+        )
+    conn = db_module.get_conn()
+    try:
+        found = family_module.find_family_by_access_code(conn, x_family_code)
+    finally:
+        conn.close()
+    if found is None:
+        raise HTTPException(status_code=403, detail="Invalid family access code.")
+    return found[0]
 
 
 # ---- request / response shapes ---------------------------------------
@@ -133,6 +162,15 @@ class HealthOut(BaseModel):
     ollama: bool
 
 
+class FamilyAuthRequest(BaseModel):
+    access_code: str = Field(min_length=1, max_length=128)
+
+
+class FamilyAuthOut(BaseModel):
+    family_id: str
+    family_name: str
+
+
 # ---- routes ----------------------------------------------------------
 
 
@@ -169,11 +207,54 @@ def _embed_event_safe(event_id: str, text: str) -> None:
         )
 
 
+def _child_row(
+    conn: sqlite3.Connection, *, child_id: str, family_id: str | None
+) -> sqlite3.Row | None:
+    if family_id is None:
+        row: sqlite3.Row | None = conn.execute(
+            "SELECT id FROM children WHERE id = ?", (child_id,)
+        ).fetchone()
+        return row
+    row = conn.execute(
+        "SELECT id FROM children WHERE id = ? AND family_id = ?",
+        (child_id, family_id),
+    ).fetchone()
+    return row
+
+
+def _require_child_visible(
+    conn: sqlite3.Connection, *, child_id: str, family_id: str | None
+) -> None:
+    if family_id is None:
+        return
+    if _child_row(conn, child_id=child_id, family_id=family_id) is None:
+        raise HTTPException(status_code=404, detail=f"child_id={child_id!r} not found")
+
+
+@app.post("/auth/family", response_model=FamilyAuthOut)
+def authenticate_family(body: FamilyAuthRequest) -> FamilyAuthOut:
+    """Verify a family access code and return the scoped family id.
+
+    This is the Phase 2.5 minimal login primitive. It is intentionally not a
+    commercial account system.
+    """
+    conn = db_module.get_conn()
+    try:
+        found = family_module.find_family_by_access_code(conn, body.access_code)
+    finally:
+        conn.close()
+    if found is None:
+        raise HTTPException(status_code=403, detail="Invalid family access code.")
+    family_id, family_name = found
+    return FamilyAuthOut(family_id=family_id, family_name=family_name)
+
+
 @app.post("/events", response_model=EventOut, status_code=201)
 def create_event(
     body: CreateEventRequest,
     background: BackgroundTasks,
     recorder: Annotated[Recorder, Depends(get_recorder)],
+    family_id: Annotated[str | None, Depends(get_current_family_id)],
     x_user_id: Annotated[str | None, Header(alias="X-User-Id")] = None,
 ) -> EventOut:
     # X-User-Id is reserved for v1 auth — read but unused in Phase 0.
@@ -181,9 +262,7 @@ def create_event(
 
     conn = db_module.get_conn()
     try:
-        child = conn.execute(
-            "SELECT id FROM children WHERE id = ?", (body.child_id,)
-        ).fetchone()
+        child = _child_row(conn, child_id=body.child_id, family_id=family_id)
         if child is None:
             raise HTTPException(
                 status_code=404,
@@ -219,10 +298,12 @@ def create_event(
 @app.get("/events", response_model=list[EventOut])
 def list_events(
     child_id: Annotated[str, Query(min_length=1, max_length=64)],
+    family_id: Annotated[str | None, Depends(get_current_family_id)],
     limit: Annotated[int, Query(ge=1, le=200)] = 20,
 ) -> list[EventOut]:
     conn = db_module.get_conn()
     try:
+        _require_child_visible(conn, child_id=child_id, family_id=family_id)
         rows = conn.execute(
             """
             SELECT id, child_id, timestamp, raw_text, summary, type,
@@ -299,6 +380,7 @@ def get_signal_extractor() -> SignalExtractor:
 @app.get("/signals", response_model=list[SignalOut])
 def list_signals(
     child_id: Annotated[str, Query(min_length=1, max_length=64)],
+    family_id: Annotated[str | None, Depends(get_current_family_id)],
     status: Annotated[str | None, Query(max_length=16)] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
 ) -> list[SignalOut]:
@@ -324,6 +406,7 @@ def list_signals(
 
     conn = db_module.get_conn()
     try:
+        _require_child_visible(conn, child_id=child_id, family_id=family_id)
         rows = conn.execute(sql, params).fetchall()
     finally:
         conn.close()
@@ -334,6 +417,7 @@ def list_signals(
 def extract_signals(
     child_id: Annotated[str, Query(min_length=1, max_length=64)],
     extractor: Annotated[SignalExtractor, Depends(get_signal_extractor)],
+    family_id: Annotated[str | None, Depends(get_current_family_id)],
     window_days: Annotated[int, Query(ge=1, le=90)] = 14,
 ) -> list[SignalOut]:
     """Manual trigger for the signal extractor.
@@ -341,6 +425,11 @@ def extract_signals(
     PRD §2.1#2: extraction is NOT cron-driven in Phase 1; the parent
     (or the backfill script) decides when to refresh the signal layer.
     """
+    conn = db_module.get_conn()
+    try:
+        _require_child_visible(conn, child_id=child_id, family_id=family_id)
+    finally:
+        conn.close()
     try:
         signals = extractor.extract_for_child(
             child_id=child_id, window_days=window_days
@@ -489,7 +578,10 @@ def _persist_insight(
 
 
 @app.post("/insights/generate", response_model=WeeklyInsightOut, status_code=201)
-def generate_insight(body: GenerateInsightRequest) -> WeeklyInsightOut:
+def generate_insight(
+    body: GenerateInsightRequest,
+    family_id: Annotated[str | None, Depends(get_current_family_id)],
+) -> WeeklyInsightOut:
     """Compose + persist a weekly insight for one (child, week).
 
     PRD §2.1#6: parent-triggered, NOT a cron. Same week regenerated with
@@ -505,6 +597,7 @@ def generate_insight(body: GenerateInsightRequest) -> WeeklyInsightOut:
 
     conn = db_module.get_conn()
     try:
+        _require_child_visible(conn, child_id=body.child_id, family_id=family_id)
         # Build the compressed context (this is also where the child-not-found
         # and non-Monday checks live).
         try:
@@ -537,10 +630,12 @@ def generate_insight(body: GenerateInsightRequest) -> WeeklyInsightOut:
 @app.get("/insights", response_model=list[WeeklyInsightOut])
 def list_insights(
     child_id: Annotated[str, Query(min_length=1, max_length=64)],
+    family_id: Annotated[str | None, Depends(get_current_family_id)],
     limit: Annotated[int, Query(ge=1, le=50)] = 12,
 ) -> list[WeeklyInsightOut]:
     conn = db_module.get_conn()
     try:
+        _require_child_visible(conn, child_id=child_id, family_id=family_id)
         rows = conn.execute(
             """
             SELECT * FROM weekly_insights
@@ -556,12 +651,26 @@ def list_insights(
 
 
 @app.get("/insights/{insight_id}", response_model=WeeklyInsightOut)
-def get_insight(insight_id: str) -> WeeklyInsightOut:
+def get_insight(
+    insight_id: str,
+    family_id: Annotated[str | None, Depends(get_current_family_id)],
+) -> WeeklyInsightOut:
     conn = db_module.get_conn()
     try:
-        row = conn.execute(
-            "SELECT * FROM weekly_insights WHERE id = ?", (insight_id,)
-        ).fetchone()
+        if family_id is None:
+            row = conn.execute(
+                "SELECT * FROM weekly_insights WHERE id = ?", (insight_id,)
+            ).fetchone()
+        else:
+            row = conn.execute(
+                """
+                SELECT wi.*
+                FROM weekly_insights wi
+                JOIN children c ON c.id = wi.child_id
+                WHERE wi.id = ? AND c.family_id = ?
+                """,
+                (insight_id, family_id),
+            ).fetchone()
     finally:
         conn.close()
     if row is None:
@@ -570,7 +679,11 @@ def get_insight(insight_id: str) -> WeeklyInsightOut:
 
 
 @app.post("/insights/{insight_id}/feedback", response_model=FeedbackOut, status_code=201)
-def post_feedback(insight_id: str, body: FeedbackRequest) -> FeedbackOut:
+def post_feedback(
+    insight_id: str,
+    body: FeedbackRequest,
+    family_id: Annotated[str | None, Depends(get_current_family_id)],
+) -> FeedbackOut:
     """PRD §3.6: section-level feedback. accuracy/value both nullable
     (parent may submit only one dimension)."""
     if body.accuracy is None and body.value is None and not body.free_text:
@@ -581,9 +694,20 @@ def post_feedback(insight_id: str, body: FeedbackRequest) -> FeedbackOut:
 
     conn = db_module.get_conn()
     try:
-        ins = conn.execute(
-            "SELECT id FROM weekly_insights WHERE id = ?", (insight_id,)
-        ).fetchone()
+        if family_id is None:
+            ins = conn.execute(
+                "SELECT id FROM weekly_insights WHERE id = ?", (insight_id,)
+            ).fetchone()
+        else:
+            ins = conn.execute(
+                """
+                SELECT wi.id
+                FROM weekly_insights wi
+                JOIN children c ON c.id = wi.child_id
+                WHERE wi.id = ? AND c.family_id = ?
+                """,
+                (insight_id, family_id),
+            ).fetchone()
         if ins is None:
             raise HTTPException(
                 status_code=404, detail=f"insight {insight_id!r} not found"
@@ -624,6 +748,7 @@ def post_feedback(insight_id: str, body: FeedbackRequest) -> FeedbackOut:
 @app.get("/heatmap", response_model=list[HeatmapCellOut])
 def get_heatmap(
     child_id: Annotated[str, Query(min_length=1, max_length=64)],
+    family_id: Annotated[str | None, Depends(get_current_family_id)],
     domains: Annotated[list[str] | None, Query()] = None,
 ) -> list[HeatmapCellOut]:
     """Per-(child_age_months, domain) intensity grid.
@@ -632,5 +757,10 @@ def get_heatmap(
     The aggregation lives in `signal_delta.heatmap_data`; the route is
     a thin shim.
     """
+    conn = db_module.get_conn()
+    try:
+        _require_child_visible(conn, child_id=child_id, family_id=family_id)
+    finally:
+        conn.close()
     cells = heatmap_data(child_id, domains=domains)
     return [HeatmapCellOut.from_cell(c) for c in cells]

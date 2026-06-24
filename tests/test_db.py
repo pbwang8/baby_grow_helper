@@ -20,10 +20,13 @@ def test_init_db_creates_all_tables(tmp_db: Path) -> None:
     table_names = {r["name"] for r in rows}
     expected = {
         "children",
+        "families",
+        "family_members",
         "events",
         "event_embeddings",
         "usage_log",
         "signals",
+        "users",
         "weekly_insights",
         "insight_feedback",
     }
@@ -153,6 +156,21 @@ def test_db_path_respects_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     target = tmp_path / "nested" / "out.db"
     monkeypatch.setenv("BGH_DB", str(target))
     assert db_module.db_path() == target.resolve()
+
+
+def test_phase25_family_columns_exist(tmp_db: Path) -> None:
+    conn = db_module.get_conn(tmp_db)
+    try:
+        child_cols = {
+            row["name"] for row in conn.execute("PRAGMA table_info(children)").fetchall()
+        }
+        usage_cols = {
+            row["name"] for row in conn.execute("PRAGMA table_info(usage_log)").fetchall()
+        }
+    finally:
+        conn.close()
+    assert "family_id" in child_cols
+    assert {"user_id", "family_id"}.issubset(usage_cols)
 
 
 # ---- Phase 1: signals table -------------------------------------------------

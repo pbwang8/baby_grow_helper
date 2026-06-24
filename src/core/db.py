@@ -17,6 +17,11 @@ Phase 2 additions (per prd/phase2-weekly-insight.md §4):
     version) unique index supports re-generation without seq collisions
     (PRD §3.5 — Cowork裁定).
 
+Phase 2.5 additions (per prd/phase2_5-family-mobile-mvp.md §3):
+  - Tables: users, families, family_members
+  - Nullable family/user columns that let the local SQLite dev path stay
+    backward-compatible while enabling a family-scoped API mode.
+
 The DB path is taken from BGH_DB env var (default ./data/babygrow.db) so
 tests can point it at a tmpdir.
 """
@@ -47,11 +52,45 @@ PRAGMA journal_mode = WAL;
 
 CREATE TABLE IF NOT EXISTS children (
     id              TEXT PRIMARY KEY,
+    family_id       TEXT REFERENCES families(id) ON DELETE CASCADE,
     name            TEXT NOT NULL,
     birthday        TEXT NOT NULL,             -- ISO date YYYY-MM-DD
     profile_json    TEXT NOT NULL DEFAULT '{}',
     created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
+
+CREATE INDEX IF NOT EXISTS idx_children_family
+    ON children(family_id, id);
+
+-- Phase 2.5: minimal family access-control foundation. SQLite remains the
+-- local/dev database; the cloud version will mirror this shape in Postgres
+-- via migrations (ADR-0004). access_code_hash stores a SHA-256 digest; raw
+-- family codes never hit disk.
+CREATE TABLE IF NOT EXISTS users (
+    id              TEXT PRIMARY KEY,
+    display_name    TEXT NOT NULL,
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+CREATE TABLE IF NOT EXISTS families (
+    id                  TEXT PRIMARY KEY,
+    name                TEXT NOT NULL,
+    access_code_hash    TEXT NOT NULL UNIQUE,
+    created_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+CREATE TABLE IF NOT EXISTS family_members (
+    family_id       TEXT NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+    user_id         TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role            TEXT NOT NULL DEFAULT 'member',
+        -- owner | caregiver | viewer | member
+    display_name    TEXT NOT NULL DEFAULT '',
+    created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    PRIMARY KEY (family_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_family_members_user
+    ON family_members(user_id);
 
 CREATE TABLE IF NOT EXISTS events (
     id              TEXT PRIMARY KEY,
@@ -80,6 +119,8 @@ CREATE TABLE IF NOT EXISTS event_embeddings (
 CREATE TABLE IF NOT EXISTS usage_log (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     ts              TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    user_id         TEXT REFERENCES users(id) ON DELETE SET NULL,
+    family_id       TEXT REFERENCES families(id) ON DELETE SET NULL,
     backend         TEXT NOT NULL,             -- local | cloud
     model           TEXT NOT NULL,
     tokens_in       INTEGER NOT NULL DEFAULT 0,
@@ -185,9 +226,45 @@ def init_db(path: Path | None = None) -> Path:
     conn = get_conn(target)
     try:
         conn.executescript(SCHEMA_SQL)
+        _ensure_backward_compatible_columns(conn)
     finally:
         conn.close()
     return target
+
+
+def _ensure_backward_compatible_columns(conn: sqlite3.Connection) -> None:
+    """Patch pre-Phase-2.5 SQLite files in place.
+
+    `CREATE TABLE IF NOT EXISTS` will not add columns to an existing table.
+    This keeps old local DBs usable without introducing a full migration
+    framework before the Postgres track lands.
+    """
+    _ensure_column(
+        conn,
+        table="children",
+        column="family_id",
+        ddl="ALTER TABLE children ADD COLUMN family_id TEXT REFERENCES families(id) ON DELETE CASCADE",
+    )
+    _ensure_column(
+        conn,
+        table="usage_log",
+        column="user_id",
+        ddl="ALTER TABLE usage_log ADD COLUMN user_id TEXT REFERENCES users(id) ON DELETE SET NULL",
+    )
+    _ensure_column(
+        conn,
+        table="usage_log",
+        column="family_id",
+        ddl="ALTER TABLE usage_log ADD COLUMN family_id TEXT REFERENCES families(id) ON DELETE SET NULL",
+    )
+
+
+def _ensure_column(
+    conn: sqlite3.Connection, *, table: str, column: str, ddl: str
+) -> None:
+    rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    if column not in {r["name"] for r in rows}:
+        conn.execute(ddl)
 
 
 @contextmanager

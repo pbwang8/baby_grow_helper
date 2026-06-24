@@ -1,7 +1,7 @@
 # 0004: 数据库从本地 SQLite 演进到云端 Postgres
 
 Date: 2026-06-24
-Status: proposed
+Status: accepted
 
 ## Context
 

@@ -1,6 +1,6 @@
 # PRD: Phase 2.5 — 家庭手机内测 MVP
 
-> **状态：proposed（2026-06-24）**
+> **状态：accepted（2026-06-24）**
 > 起草者：Code 模式（根据作者 2026-06-24 方向确认）
 > 关联文档：`ROADMAP.md` Phase 2/3 之间、`ARCHITECTURE.md` §1/§5/§8、
 > `decisions/0004-database-evolution-local-sqlite-to-cloud-postgres.md`
@@ -275,6 +275,16 @@ Phase 2.5 只实现 `family -> usage cap` 的基础，不实现支付。
 4. Postgres 是否允许使用托管服务？如果使用，优先国内云还是海外云？
 
 5. 导出/删除在 Phase 2.5 是否要求 UI 按钮，还是先提供管理员 API？
+
+## 10. 作者裁定（2026-06-24）
+
+- 部署路线：**云服务器 + Docker Compose**。本机公网隧道可用于临时调试，
+  但不作为家庭内测的正式路径。
+- 访问控制：**家庭访问码**。先不接邮件/SMS/magic link。
+- 多孩子：schema 支持多孩子，UI 首版先单孩子。
+- Postgres：允许使用托管 Postgres 或云服务器容器内 Postgres；实现层优先保持
+  标准 Postgres，不绑定 BaaS。
+- 导出/删除：Phase 2.5 先提供管理员 API，UI 按钮可后置。
 
 ---
 
