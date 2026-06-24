@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">BabyGrowHelper</title>
+  <desc id="desc">A warm app icon with a sprout and growth rings.</desc>
+  <rect width="512" height="512" rx="96" fill="#fafaf7"/>
+  <circle cx="256" cy="278" r="154" fill="#fef3c7"/>
+  <circle cx="256" cy="278" r="112" fill="none" stroke="#d97706" stroke-width="18" opacity=".32"/>
+  <circle cx="256" cy="278" r="68" fill="none" stroke="#059669" stroke-width="18" opacity=".36"/>
+  <path d="M256 336c0-80 0-130 0-174" fill="none" stroke="#1f2937" stroke-width="24" stroke-linecap="round"/>
+  <path d="M255 203c-64-9-96-45-99-105 60 2 101 35 111 91 2 10-2 16-12 14Z" fill="#10b981"/>
+  <path d="M271 217c63-11 101-48 111-109-63 1-109 34-124 92-3 11 2 19 13 17Z" fill="#34d399"/>
+  <circle cx="256" cy="354" r="28" fill="#1f2937"/>
+</svg>

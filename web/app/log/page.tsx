@@ -44,8 +44,8 @@ export default function LogPage() {
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="例：今天瑶瑶在小区追蝴蝶追了 20 分钟，笑得停不下来"
-          className="block w-full rounded-md border border-stone-300 bg-white p-3 text-sm
+          placeholder="例：今天孩子在小区追蝴蝶追了 20 分钟，笑得停不下来"
+          className="block w-full rounded-md border border-stone-300 bg-white p-3 text-base
                      focus:border-stone-500 focus:outline-none"
           rows={4}
           maxLength={4000}
@@ -55,7 +55,7 @@ export default function LogPage() {
           <button
             type="submit"
             disabled={busy || !text.trim()}
-            className="rounded-md bg-stone-800 px-4 py-2 text-sm text-white
+            className="min-h-11 rounded-md bg-stone-800 px-4 py-2 text-sm text-white
                        transition disabled:cursor-not-allowed disabled:bg-stone-400"
           >
             {busy ? "处理中…" : "记一笔"}

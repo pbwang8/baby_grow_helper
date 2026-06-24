@@ -1,0 +1,19 @@
+{
+  "name": "BabyGrowHelper",
+  "short_name": "BabyGrow",
+  "description": "Family trial app for BabyGrowHelper",
+  "start_url": "/log",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#fafaf7",
+  "theme_color": "#fafaf7",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icons/babygrow-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -11,3 +11,14 @@ body {
   background: #fafaf7;
   color: #1f1f1f;
 }
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+input,
+textarea {
+  font-size: 16px;
+}

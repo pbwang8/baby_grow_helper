@@ -1,10 +1,26 @@
 import "./globals.css";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "BabyGrowHelper · Phase 1",
-  description: "Local-first parenting companion · signals layer",
+  title: "BabyGrowHelper",
+  description: "Local-first parenting companion for invited family trials",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "BabyGrow",
+    statusBarStyle: "default",
+  },
+  icons: {
+    icon: "/icons/babygrow-icon.svg",
+    apple: "/icons/babygrow-icon.svg",
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#fafaf7",
 };
 
 export default function RootLayout({
@@ -16,7 +32,7 @@ export default function RootLayout({
     <html lang="zh-CN">
       <body className="min-h-screen font-sans antialiased">
         <header className="border-b border-stone-200 bg-white">
-          <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
+          <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <div className="flex items-baseline gap-3">
               <Link
                 href="/log"
@@ -24,9 +40,15 @@ export default function RootLayout({
               >
                 BabyGrowHelper
               </Link>
-              <span className="text-xs text-stone-500">phase 1 · 信号</span>
+              <span className="text-xs text-stone-500">family trial</span>
             </div>
-            <nav className="flex gap-5 text-sm">
+            <nav className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
+              <Link
+                href="/login"
+                className="hover:text-stone-900 text-stone-600"
+              >
+                家庭
+              </Link>
               <Link href="/log" className="hover:text-stone-900 text-stone-600">
                 记一笔
               </Link>
@@ -51,7 +73,9 @@ export default function RootLayout({
             </nav>
           </div>
         </header>
-        <main className="mx-auto max-w-5xl px-6 py-8">{children}</main>
+        <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
+          {children}
+        </main>
       </body>
     </html>
   );

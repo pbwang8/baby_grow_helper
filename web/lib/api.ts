@@ -1,6 +1,7 @@
-// Thin client for the Phase 1 FastAPI surface (src/api/main.py).
-// Single-user local app — base URL is fixed to localhost:8000 unless
-// NEXT_PUBLIC_API_BASE is set. CORS is opened for :3000 on the API side.
+// Thin client for the FastAPI surface (src/api/main.py).
+// Local app defaults to localhost:8000 unless NEXT_PUBLIC_API_BASE is set.
+
+import { getFamilyAccessCode, saveFamilySession } from "./family-session";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
@@ -47,6 +48,11 @@ export type HeatmapCell = {
   event_count: number;
 };
 
+export type FamilyAuthOut = {
+  family_id: string;
+  family_name: string;
+};
+
 async function jsonFetch<T>(
   path: string,
   init?: RequestInit & { searchParams?: Record<string, string | number | string[]> }
@@ -65,6 +71,7 @@ async function jsonFetch<T>(
     ...init,
     headers: {
       "Content-Type": "application/json",
+      ...familyHeader(),
       ...(init?.headers ?? {}),
     },
     cache: "no-store",
@@ -80,6 +87,20 @@ async function jsonFetch<T>(
     throw new Error(`${res.status} ${detail}`);
   }
   return res.json() as Promise<T>;
+}
+
+function familyHeader(): Record<string, string> {
+  const code = getFamilyAccessCode();
+  return code ? { "X-Family-Code": code } : {};
+}
+
+export async function authenticateFamily(access_code: string): Promise<FamilyAuthOut> {
+  const family = await jsonFetch<FamilyAuthOut>("/auth/family", {
+    method: "POST",
+    body: JSON.stringify({ access_code }),
+  });
+  saveFamilySession({ ...family, access_code });
+  return family;
 }
 
 export async function postEvent(args: {

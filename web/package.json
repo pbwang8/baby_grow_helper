@@ -1,8 +1,8 @@
 {
   "name": "babygrow-web",
-  "version": "0.1.0-phase1",
+  "version": "0.2.5-family-trial",
   "private": true,
-  "description": "BabyGrowHelper Phase 1 frontend — log / timeline / heatmap. PRD: prd/phase1-signals.md §2.1#5.",
+  "description": "BabyGrowHelper family trial frontend — log / timeline / heatmap / weekly / login.",
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",
