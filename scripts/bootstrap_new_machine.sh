@@ -1,10 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT"
+ROOT_POSIX="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$ROOT_POSIX"
+if command -v cygpath >/dev/null 2>&1; then
+  ROOT_NATIVE="$(cygpath -w "$ROOT_POSIX")"
+else
+  ROOT_NATIVE="$ROOT_POSIX"
+fi
+cd "$ROOT_POSIX"
 
 export UV_CACHE_DIR="${TMPDIR:-/tmp}/uv-cache"
+export PYTHONUTF8=1
 unset HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy NO_PROXY no_proxy || true
 
 need() {
@@ -34,7 +41,7 @@ ollama --version || true
 echo
 
 echo "[2/7] Python dependencies"
-uv sync --extra dev
+uv sync --frozen --extra dev
 echo
 
 echo "[3/7] Web dependencies"
@@ -45,11 +52,11 @@ echo
 
 echo "[4/7] Initialize default local DB"
 mkdir -p "$ROOT/data"
-BGH_DB="$ROOT/data/babygrow.db" uv run --no-sync python -m src.core.db --init
+BGH_DB="$ROOT_NATIVE/data/babygrow.db" uv run --no-sync python -m src.core.db --init
 echo
 
 echo "[5/7] Build synthetic demo DB: data/demo_xiaoming.db"
-BGH_DB="$ROOT/data/demo_xiaoming.db" uv run --no-sync python - <<'PY'
+BGH_DB="$ROOT_NATIVE/data/demo_xiaoming.db" uv run --no-sync python - <<'PY'
 from pathlib import Path
 
 from src.core import db
@@ -86,17 +93,18 @@ npm run typecheck
 cd "$ROOT"
 echo
 
-cat <<'EOF'
+cat <<EOF
 Bootstrap done.
 
 Run backend:
-  cd ~/Documents/Claude/Projects/baby_grow_helper
-  export UV_CACHE_DIR="$TMPDIR/uv-cache"
+  cd "$ROOT_POSIX"
+  export PYTHONUTF8=1
+  export UV_CACHE_DIR="\${TMPDIR:-/tmp}/uv-cache"
   export BGH_DB="./data/demo_xiaoming.db"
   uv run --no-sync uvicorn src.api.main:app --host 127.0.0.1 --port 8000 --reload
 
 Run frontend:
-  cd ~/Documents/Claude/Projects/baby_grow_helper/web
+  cd "$ROOT_POSIX/web"
   npm run dev
 
 Open:

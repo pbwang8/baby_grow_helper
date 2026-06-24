@@ -24,10 +24,25 @@ git clone https://github.com/pbwang8/baby_grow_helper.git
 cd baby_grow_helper
 ```
 
+Windows PowerShell：
+
+```powershell
+New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\Documents\Claude\Projects"
+cd "$env:USERPROFILE\Documents\Claude\Projects"
+git clone https://github.com/pbwang8/baby_grow_helper.git
+cd baby_grow_helper
+```
+
 在 Codex 里打开这个目录：
 
 ```text
 ~/Documents/Claude/Projects/baby_grow_helper
+```
+
+Windows：
+
+```text
+%USERPROFILE%\Documents\Claude\Projects\baby_grow_helper
 ```
 
 ## 3. 准备系统依赖
@@ -44,9 +59,18 @@ installer；如果缺 Ollama，用 Ollama 官方安装包。
 
 ## 4. 一键 bootstrap
 
+macOS / Linux / Git Bash：
+
 ```bash
 cd ~/Documents/Claude/Projects/baby_grow_helper
 bash scripts/bootstrap_new_machine.sh
+```
+
+Windows PowerShell：
+
+```powershell
+cd "$env:USERPROFILE\Documents\Claude\Projects\baby_grow_helper"
+.\scripts\bootstrap_new_machine.ps1
 ```
 
 脚本会做：
@@ -58,6 +82,12 @@ bash scripts/bootstrap_new_machine.sh
 - 创建 `data/demo_xiaoming.db`，写入合成小明 fixture
 - 跑一轮非集成测试
 - 跑前端 TypeScript 检查
+
+两台电脑之间的日常交接规则见：
+
+```text
+docs/GIT_HANDOFF_WORKFLOW.md
+```
 
 ## 5. 本地密钥
 

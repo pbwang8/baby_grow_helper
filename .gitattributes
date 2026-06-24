@@ -1,0 +1,16 @@
+* text=auto eol=lf
+
+# Windows command shims are friendlier with CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary assets.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.db binary
+*.sqlite binary
+*.sqlite3 binary
