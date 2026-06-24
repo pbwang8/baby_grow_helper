@@ -27,7 +27,17 @@ export default function LoginPage() {
     setError(null);
     try {
       const family = await authenticateFamily(code.trim());
-      setSession({ ...family, access_code: code.trim() });
+      if (!family.children[0]) {
+        clearFamilySession();
+        setError("这个家庭还没有孩子档案");
+        return;
+      }
+      setSession({
+        family_id: family.family_id,
+        family_name: family.family_name,
+        access_code: code.trim(),
+        child_id: family.children[0].id,
+      });
       router.push("/log");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -47,7 +57,9 @@ export default function LoginPage() {
       <div>
         <h1 className="text-2xl font-semibold">家庭访问</h1>
         <p className="mt-1 text-sm text-stone-500">
-          {session ? `${session.family_name} 已连接` : "输入邀请访问码"}
+          {session
+            ? `${session.family_name} 已连接${session.child_id ? ` · ${session.child_id}` : ""}`
+            : "输入邀请访问码"}
         </p>
       </div>
 

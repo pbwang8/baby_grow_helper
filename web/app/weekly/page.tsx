@@ -7,7 +7,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  DEFAULT_CHILD_ID,
+  activeChildId,
   generateInsight,
   listInsights,
   postFeedback,
@@ -105,7 +105,7 @@ export default function WeeklyPage() {
     setLoading(true);
     setError(null);
     try {
-      const rows = await listInsights({ child_id: DEFAULT_CHILD_ID, limit: 12 });
+      const rows = await listInsights({ child_id: activeChildId(), limit: 12 });
       setInsights(rows);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -130,7 +130,7 @@ export default function WeeklyPage() {
     setError(null);
     try {
       await generateInsight({
-        child_id: DEFAULT_CHILD_ID,
+        child_id: activeChildId(),
         week_start: selected.weekStart,
         backend: "claude",
       });

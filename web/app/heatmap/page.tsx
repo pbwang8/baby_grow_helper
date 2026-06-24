@@ -6,7 +6,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  DEFAULT_CHILD_ID,
+  activeChildId,
   getHeatmap,
   type HeatmapCell,
 } from "@/lib/api";
@@ -33,7 +33,7 @@ export default function HeatmapPage() {
       setLoading(true);
       setError(null);
       try {
-        const data = await getHeatmap({ child_id: DEFAULT_CHILD_ID });
+        const data = await getHeatmap({ child_id: activeChildId() });
         if (!cancelled) setCells(data);
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : String(err));

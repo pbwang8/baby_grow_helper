@@ -2,6 +2,7 @@ export type FamilySession = {
   family_id: string;
   family_name: string;
   access_code: string;
+  child_id: string | null;
 };
 
 const STORAGE_KEY = "bgh.family_session.v1";
@@ -19,6 +20,7 @@ export function getFamilySession(): FamilySession | null {
       family_id: parsed.family_id,
       family_name: parsed.family_name,
       access_code: parsed.access_code,
+      child_id: parsed.child_id ?? null,
     };
   } catch {
     return null;
@@ -27,6 +29,10 @@ export function getFamilySession(): FamilySession | null {
 
 export function getFamilyAccessCode(): string | null {
   return getFamilySession()?.access_code ?? null;
+}
+
+export function getSessionChildId(): string | null {
+  return getFamilySession()?.child_id ?? null;
 }
 
 export function saveFamilySession(session: FamilySession): void {

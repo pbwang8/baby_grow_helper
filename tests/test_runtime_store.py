@@ -78,6 +78,7 @@ def test_sqlite_family_event_store_roundtrip(tmp_db: object) -> None:
     assert store.authenticate_family("wrong") is None
     assert store.child_exists(child_id="xiaoming", family_id="fam_001")
     assert not store.child_exists(child_id="xiaoming", family_id="fam_002")
+    assert store.list_children(family_id="fam_001")[0].id == "xiaoming"
 
     store.insert_event(_event(), family_id="fam_001")
     rows = store.list_events(child_id="xiaoming", family_id="fam_001", limit=10)
@@ -111,6 +112,7 @@ def test_postgres_store_auth_child_and_event_queries() -> None:
     assert store.authenticate_family("alpha-secret") == ("fam_001", "Alpha Family")
     assert store.authenticate_family("wrong") is None
     assert store.child_exists(child_id="xiaoming", family_id="fam_001")
+    assert store.list_children(family_id="fam_001")[0].name == "小明"
 
     store.insert_event(_event("evt_pg_1"), family_id="fam_001")
     rows = store.list_events(child_id="xiaoming", family_id="fam_001", limit=5)
@@ -171,6 +173,18 @@ class _FakeCursor(AbstractContextManager["_FakeCursor"]):
             return
         if "FROM children" in compact:
             self._one = 1 if params == ("xiaoming", "fam_001") else None
+            if compact.startswith("SELECT id, name, birthday"):
+                self._many = (
+                    [
+                        {
+                            "id": "xiaoming",
+                            "name": "小明",
+                            "birthday": "2023-06-01",
+                        }
+                    ]
+                    if params == ("fam_001",)
+                    else []
+                )
             return
         if compact.startswith("INSERT INTO events"):
             domains = params[7]

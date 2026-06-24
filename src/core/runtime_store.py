@@ -32,6 +32,13 @@ class RuntimeStoreError(RuntimeError):
 
 
 @dataclass(frozen=True)
+class ChildRecord:
+    id: str
+    name: str
+    birthday: str
+
+
+@dataclass(frozen=True)
 class EventRecord:
     id: str
     child_id: str
@@ -77,6 +84,9 @@ class FamilyEventStore(Protocol):
         self, *, child_id: str, family_id: str | None, limit: int
     ) -> list[Row]:
         """Newest-first event listing."""
+
+    def list_children(self, *, family_id: str | None) -> list[ChildRecord]:
+        """Children visible to the caller."""
 
 
 def runtime_backend() -> RuntimeBackend:
@@ -178,6 +188,25 @@ class SQLiteFamilyEventStore:
         finally:
             conn.close()
 
+    def list_children(self, *, family_id: str | None) -> list[ChildRecord]:
+        if family_id is None:
+            sql = "SELECT id, name, birthday FROM children ORDER BY created_at ASC, id ASC"
+            params: tuple[object, ...] = ()
+        else:
+            sql = """
+                SELECT id, name, birthday
+                FROM children
+                WHERE family_id = ?
+                ORDER BY created_at ASC, id ASC
+            """
+            params = (family_id,)
+        conn = sqlite_db.get_conn()
+        try:
+            rows = conn.execute(sql, params).fetchall()
+            return [_child_from_row(_row_to_dict(row)) for row in rows]
+        finally:
+            conn.close()
+
 
 class PostgresFamilyEventStore:
     supports_background_embeddings = False
@@ -267,6 +296,22 @@ class PostgresFamilyEventStore:
             rows = cur.fetchall()
         return [_row_to_dict(row) for row in rows]
 
+    def list_children(self, *, family_id: str | None) -> list[ChildRecord]:
+        if family_id is None:
+            return []
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT id, name, birthday
+                FROM children
+                WHERE family_id = %s
+                ORDER BY created_at ASC, id ASC
+                """,
+                (family_id,),
+            )
+            rows = cur.fetchall()
+        return [_child_from_row(_row_to_dict(row)) for row in rows]
+
     def _connect(self) -> AbstractContextManager[Any]:
         if self._connect_factory is not None:
             return self._connect_factory(self._database_url)
@@ -291,3 +336,11 @@ def _row_to_dict(row: Mapping[str, object] | object) -> Row:
         row_any: Any = row
         return {str(key): row_any[key] for key in keys()}
     raise RuntimeStoreError(f"Unsupported database row shape: {type(row).__name__}")
+
+
+def _child_from_row(row: Mapping[str, object]) -> ChildRecord:
+    return ChildRecord(
+        id=str(row["id"]),
+        name=str(row["name"]),
+        birthday=str(row["birthday"]),
+    )

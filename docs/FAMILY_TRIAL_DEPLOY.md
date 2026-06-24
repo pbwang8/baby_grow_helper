@@ -51,38 +51,29 @@ docker compose -f deploy/docker-compose.family-trial.yml exec ollama \
 
 ## 4. 创建家庭访问码
 
-当前 Postgres runtime 已支持家庭鉴权和 events 读写。内测家庭访问码可以通过
-Postgres SQL 临时创建；后续会把 admin CLI 也迁到 Postgres。
+当前 Postgres runtime 已支持家庭鉴权和 events 读写。内测家庭访问码用
+`family_admin` 创建；命令只会打印一次明文访问码，数据库只保存 hash。
 
 ```bash
-docker compose -f deploy/docker-compose.family-trial.yml exec postgres psql \
-  -U babygrow -d babygrow
+docker compose -f deploy/docker-compose.family-trial.yml exec api \
+  uv run --no-sync python -m src.scripts.family_admin create \
+  --family-id fam_001 \
+  --name "Alpha Family" \
+  --owner-name "Alpha Owner"
 ```
 
-在 `psql` 内执行：
+返回 JSON 里的 `access_code` 发给对应家庭。不要把它提交进 Git。
 
-```sql
-INSERT INTO families(id, name, access_code_hash)
-VALUES (
-  'fam_001',
-  'Alpha Family',
-  'sha256:<由本地 family_admin 或 Python 计算出的 hash>'
-);
-
-INSERT INTO children(id, family_id, name, birthday)
-VALUES ('child_001', 'fam_001', '孩子昵称', '2023-06-01');
-```
-
-更安全的操作方式是在本地计算访问码 hash：
+创建这个家庭的 child：
 
 ```bash
-uv run --no-sync python - <<'PY'
-from src.core.family import hash_access_code
-print(hash_access_code("给家人的访问码"))
-PY
+docker compose -f deploy/docker-compose.family-trial.yml exec api \
+  uv run --no-sync python -m src.scripts.family_admin create-child \
+  --child-id child_001 \
+  --family-id fam_001 \
+  --name "孩子昵称" \
+  --birthday 2023-06-01
 ```
-
-然后把输出填进 SQL 的 `access_code_hash`。
 
 ## 5. 手机访问
 

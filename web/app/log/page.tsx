@@ -2,14 +2,19 @@
 
 // PRD §2.1#5 — /log: textarea + 记一笔 → POST /events → 结构化结果回显.
 
-import { useState } from "react";
-import { DEFAULT_CHILD_ID, postEvent, type EventOut } from "@/lib/api";
+import { useEffect, useState } from "react";
+import { DEFAULT_CHILD_ID, activeChildId, postEvent, type EventOut } from "@/lib/api";
 
 export default function LogPage() {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<EventOut | null>(null);
+  const [childId, setChildId] = useState(DEFAULT_CHILD_ID);
+
+  useEffect(() => {
+    setChildId(activeChildId());
+  }, []);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -18,7 +23,7 @@ export default function LogPage() {
     setError(null);
     try {
       const ev = await postEvent({
-        child_id: DEFAULT_CHILD_ID,
+        child_id: childId,
         raw_text: text.trim(),
       });
       setResult(ev);
@@ -36,7 +41,7 @@ export default function LogPage() {
         <h1 className="text-2xl font-semibold">记一笔</h1>
         <p className="mt-1 text-sm text-stone-500">
           一句话描述刚刚发生的事 — 模型会拆出 type / domain / emotion.
-          孩子 id：<code className="text-stone-700">{DEFAULT_CHILD_ID}</code>
+          孩子 id：<code className="text-stone-700">{childId}</code>
         </p>
       </div>
 

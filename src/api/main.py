@@ -180,9 +180,20 @@ class FamilyAuthRequest(BaseModel):
     access_code: str = Field(min_length=1, max_length=128)
 
 
+class ChildOut(BaseModel):
+    id: str
+    name: str
+    birthday: str
+
+    @classmethod
+    def from_record(cls, child: store_module.ChildRecord) -> ChildOut:
+        return cls(id=child.id, name=child.name, birthday=child.birthday)
+
+
 class FamilyAuthOut(BaseModel):
     family_id: str
     family_name: str
+    children: list[ChildOut]
 
 
 def _row_str(row: sqlite3.Row | Mapping[str, object], key: str) -> str:
@@ -275,7 +286,23 @@ def authenticate_family(
     if found is None:
         raise HTTPException(status_code=403, detail="Invalid family access code.")
     family_id, family_name = found
-    return FamilyAuthOut(family_id=family_id, family_name=family_name)
+    children = store.list_children(family_id=family_id)
+    return FamilyAuthOut(
+        family_id=family_id,
+        family_name=family_name,
+        children=[ChildOut.from_record(child) for child in children],
+    )
+
+
+@app.get("/children", response_model=list[ChildOut])
+def list_children(
+    family_id: Annotated[str | None, Depends(get_current_family_id)],
+    store: Annotated[
+        store_module.FamilyEventStore, Depends(get_family_event_store)
+    ],
+) -> list[ChildOut]:
+    children = store.list_children(family_id=family_id)
+    return [ChildOut.from_record(child) for child in children]
 
 
 @app.post("/events", response_model=EventOut, status_code=201)

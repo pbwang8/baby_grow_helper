@@ -1,7 +1,11 @@
 // Thin client for the FastAPI surface (src/api/main.py).
 // Local app defaults to localhost:8000 unless NEXT_PUBLIC_API_BASE is set.
 
-import { getFamilyAccessCode, saveFamilySession } from "./family-session";
+import {
+  getFamilyAccessCode,
+  getSessionChildId,
+  saveFamilySession,
+} from "./family-session";
 
 function defaultApiBase(): string {
   if (process.env.NEXT_PUBLIC_API_BASE) {
@@ -20,6 +24,10 @@ const API_BASE = defaultApiBase();
 // 瑶瑶, they seed a child with id=yaoyao and override via env.
 export const DEFAULT_CHILD_ID =
   process.env.NEXT_PUBLIC_CHILD_ID ?? "xiaoming";
+
+export function activeChildId(): string {
+  return getSessionChildId() ?? DEFAULT_CHILD_ID;
+}
 
 export type EventOut = {
   id: string;
@@ -60,6 +68,13 @@ export type HeatmapCell = {
 export type FamilyAuthOut = {
   family_id: string;
   family_name: string;
+  children: ChildOut[];
+};
+
+export type ChildOut = {
+  id: string;
+  name: string;
+  birthday: string;
 };
 
 async function jsonFetch<T>(
@@ -108,8 +123,17 @@ export async function authenticateFamily(access_code: string): Promise<FamilyAut
     method: "POST",
     body: JSON.stringify({ access_code }),
   });
-  saveFamilySession({ ...family, access_code });
+  saveFamilySession({
+    family_id: family.family_id,
+    family_name: family.family_name,
+    access_code,
+    child_id: family.children[0]?.id ?? null,
+  });
   return family;
+}
+
+export async function listChildren(): Promise<ChildOut[]> {
+  return jsonFetch<ChildOut[]>("/children");
 }
 
 export async function postEvent(args: {

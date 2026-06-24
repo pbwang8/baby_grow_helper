@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  DEFAULT_CHILD_ID,
+  activeChildId,
   extractSignals,
   listEvents,
   listSignals,
@@ -33,9 +33,10 @@ export default function TimelinePage() {
     setLoading(true);
     setError(null);
     try {
+      const childId = activeChildId();
       const [e, s] = await Promise.all([
-        listEvents({ child_id: DEFAULT_CHILD_ID, limit: 100 }),
-        listSignals({ child_id: DEFAULT_CHILD_ID, limit: 50 }),
+        listEvents({ child_id: childId, limit: 100 }),
+        listSignals({ child_id: childId, limit: 50 }),
       ]);
       setEvents(e);
       setSignals(s);
@@ -54,7 +55,7 @@ export default function TimelinePage() {
     setExtracting(true);
     setError(null);
     try {
-      await extractSignals({ child_id: DEFAULT_CHILD_ID, window_days: 14 });
+      await extractSignals({ child_id: activeChildId(), window_days: 14 });
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

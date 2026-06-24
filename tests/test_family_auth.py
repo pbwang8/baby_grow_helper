@@ -54,7 +54,13 @@ def test_family_auth_endpoint_accepts_valid_code(tmp_db: Path) -> None:
     with TestClient(app) as client:
         r = client.post("/auth/family", json={"access_code": "family-secret"})
     assert r.status_code == 200, r.text
-    assert r.json() == {"family_id": "fam_test", "family_name": "Test Family"}
+    assert r.json() == {
+        "family_id": "fam_test",
+        "family_name": "Test Family",
+        "children": [
+            {"id": "xiaoming", "name": "小明", "birthday": "2023-06-01"},
+        ],
+    }
 
 
 def test_family_auth_endpoint_rejects_invalid_code(tmp_db: Path) -> None:
@@ -101,6 +107,20 @@ def test_events_allow_valid_family_code(
         )
     assert r.status_code == 200
     assert r.json() == []
+
+
+def test_children_lists_only_current_family(
+    tmp_db: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _seed_family_child(tmp_db)
+    monkeypatch.setenv("BGH_REQUIRE_FAMILY_AUTH", "1")
+    with TestClient(app) as client:
+        r = client.get(
+            "/children",
+            headers={family_module.FAMILY_CODE_HEADER: "family-secret"},
+        )
+    assert r.status_code == 200
+    assert r.json() == [{"id": "xiaoming", "name": "小明", "birthday": "2023-06-01"}]
 
 
 def test_family_code_cannot_read_other_child(
