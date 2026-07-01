@@ -73,8 +73,9 @@ export default function HeatmapPage() {
       </div>
 
       {error && (
-        <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700">
-          {error}
+        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          热度图分析暂不可用：{error}。你仍然可以先在「记一笔」和「时间轴」
+          记录、回看事件。
         </div>
       )}
 

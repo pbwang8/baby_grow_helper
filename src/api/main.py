@@ -49,7 +49,7 @@ from src.core import family as family_module
 from src.core import runtime_store as store_module
 from src.core.llm_client import LLMClient
 from src.core.models import Signal
-from src.core.signal_delta import HeatmapCell, heatmap_data
+from src.core.signal_delta import HeatmapCell
 
 app = FastAPI(
     title="BabyGrowHelper",
@@ -125,6 +125,7 @@ def get_current_family_id(
 class CreateEventRequest(BaseModel):
     child_id: str = Field(min_length=1, max_length=64)
     raw_text: str = Field(min_length=1, max_length=4000)
+    occurred_at: str | None = Field(default=None, min_length=10, max_length=32)
 
 
 class EventOut(BaseModel):
@@ -196,6 +197,27 @@ class FamilyAuthOut(BaseModel):
     children: list[ChildOut]
 
 
+class CreateChildRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=40)
+    birthday: str = Field(min_length=10, max_length=10)  # YYYY-MM-DD
+
+
+class TrialFeedbackRequest(BaseModel):
+    child_id: str | None = Field(default=None, max_length=64)
+    page: str = Field(min_length=1, max_length=80)
+    category: Literal["bug", "idea", "confusing", "other"] = "other"
+    message: str = Field(min_length=1, max_length=2000)
+    contact: str | None = Field(default=None, max_length=120)
+
+
+class TrialFeedbackOut(BaseModel):
+    id: str
+    child_id: str | None
+    page: str
+    category: str
+    created_at: str
+
+
 def _row_str(row: sqlite3.Row | Mapping[str, object], key: str) -> str:
     value = row[key]
     if value is None:
@@ -208,6 +230,51 @@ def _json_list(value: object) -> list[str]:
     if not isinstance(loaded, list):
         return []
     return [str(item) for item in loaded]
+
+
+def _validate_iso_date(value: str, *, field: str) -> None:
+    try:
+        dt.date.fromisoformat(value)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=422,
+            detail=f"{field} must be YYYY-MM-DD, got {value!r}",
+        ) from e
+
+
+def _utc_now_iso() -> str:
+    return dt.datetime.now(dt.UTC).isoformat().replace("+00:00", "Z")
+
+
+def _normalize_event_timestamp(occurred_at: str | None) -> str | None:
+    """Normalize optional historical entry date/time into recorder timestamp.
+
+    `/log` usually records "now". For milestone backfill, the user can provide
+    a date (`YYYY-MM-DD`) or an ISO-ish datetime. A date-only value is anchored
+    to noon China time so it sorts into the right day without pretending we know
+    the exact hour.
+    """
+    if occurred_at is None:
+        return None
+    value = occurred_at.strip()
+    if not value:
+        return None
+    if len(value) == 10:
+        _validate_iso_date(value, field="occurred_at")
+        return f"{value}T12:00:00+08:00"
+    try:
+        parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as e:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "occurred_at must be YYYY-MM-DD or ISO datetime, "
+                f"got {occurred_at!r}"
+            ),
+        ) from e
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=dt.timezone(dt.timedelta(hours=8)))
+    return parsed.isoformat()
 
 
 # ---- routes ----------------------------------------------------------
@@ -305,6 +372,32 @@ def list_children(
     return [ChildOut.from_record(child) for child in children]
 
 
+@app.post("/children", response_model=ChildOut, status_code=201)
+def create_child(
+    body: CreateChildRequest,
+    family_id: Annotated[str | None, Depends(get_current_family_id)],
+    store: Annotated[
+        store_module.FamilyEventStore, Depends(get_family_event_store)
+    ],
+) -> ChildOut:
+    """Create a child profile inside the current invited family.
+
+    Phase 2.5 keeps auth intentionally small: family access code first, child
+    profile second. No phone/SMS account system is introduced here.
+    """
+    _validate_iso_date(body.birthday, field="birthday")
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="name must not be blank")
+    child = store.create_child(
+        family_id=family_id,
+        child_id=f"child_{uuid.uuid4().hex[:12]}",
+        name=name,
+        birthday=body.birthday,
+    )
+    return ChildOut.from_record(child)
+
+
 @app.post("/events", response_model=EventOut, status_code=201)
 def create_event(
     body: CreateEventRequest,
@@ -326,7 +419,11 @@ def create_event(
         )
 
     try:
-        event = recorder.record(child_id=body.child_id, raw_text=body.raw_text)
+        event = recorder.record(
+            child_id=body.child_id,
+            raw_text=body.raw_text,
+            timestamp=_normalize_event_timestamp(body.occurred_at),
+        )
     except RecorderError as e:
         raise HTTPException(status_code=502, detail=f"Recorder failed: {e}") from e
 
@@ -368,6 +465,45 @@ def list_events(
         raise HTTPException(status_code=404, detail=f"child_id={child_id!r} not found")
     rows = store.list_events(child_id=child_id, family_id=family_id, limit=limit)
     return [EventOut.from_row(row) for row in rows]
+
+
+@app.post("/feedback", response_model=TrialFeedbackOut, status_code=201)
+def submit_trial_feedback(
+    body: TrialFeedbackRequest,
+    family_id: Annotated[str | None, Depends(get_current_family_id)],
+    store: Annotated[
+        store_module.FamilyEventStore, Depends(get_family_event_store)
+    ],
+) -> TrialFeedbackOut:
+    """Store invited-family product feedback.
+
+    This is separate from `/insights/{id}/feedback`, which rates one weekly
+    insight section. Here the tester can report app-level friction.
+    """
+    child_id = body.child_id.strip() if body.child_id else None
+    if child_id and not store.child_exists(child_id=child_id, family_id=family_id):
+        raise HTTPException(status_code=404, detail=f"child_id={child_id!r} not found")
+
+    created_at = _utc_now_iso()
+    feedback = store_module.TrialFeedbackRecord(
+        id=uuid.uuid4().hex,
+        child_id=child_id or None,
+        page=body.page.strip(),
+        category=body.category,
+        message=body.message.strip(),
+        contact=(body.contact or "").strip(),
+        created_at=created_at,
+    )
+    if not feedback.page or not feedback.message:
+        raise HTTPException(status_code=422, detail="page and message must not be blank")
+    store.submit_trial_feedback(feedback, family_id=family_id)
+    return TrialFeedbackOut(
+        id=feedback.id,
+        child_id=feedback.child_id,
+        page=feedback.page,
+        category=feedback.category,
+        created_at=feedback.created_at,
+    )
 
 
 # ---- Phase 1: signals + heatmap routes -------------------------------
@@ -799,18 +935,20 @@ def post_feedback(
 def get_heatmap(
     child_id: Annotated[str, Query(min_length=1, max_length=64)],
     family_id: Annotated[str | None, Depends(get_current_family_id)],
+    store: Annotated[
+        store_module.FamilyEventStore, Depends(get_family_event_store)
+    ],
     domains: Annotated[list[str] | None, Query()] = None,
 ) -> list[HeatmapCellOut]:
     """Per-(child_age_months, domain) intensity grid.
 
     PRD §2.1#5: x-axis is **child age in months**, NOT calendar date.
-    The aggregation lives in `signal_delta.heatmap_data`; the route is
-    a thin shim.
+    The aggregation uses the runtime store so deployed Postgres family trials
+    do not fall back to local SQLite.
     """
-    conn = db_module.get_conn()
-    try:
-        _require_child_visible(conn, child_id=child_id, family_id=family_id)
-    finally:
-        conn.close()
-    cells = heatmap_data(child_id, domains=domains)
+    if family_id is not None and not store.child_exists(
+        child_id=child_id, family_id=family_id
+    ):
+        raise HTTPException(status_code=404, detail=f"child_id={child_id!r} not found")
+    cells = store.heatmap_data(child_id=child_id, family_id=family_id, domains=domains)
     return [HeatmapCellOut.from_cell(c) for c in cells]

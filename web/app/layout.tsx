@@ -53,6 +53,12 @@ export default function RootLayout({
                 记一笔
               </Link>
               <Link
+                href="/children"
+                className="hover:text-stone-900 text-stone-600"
+              >
+                孩子
+              </Link>
+              <Link
                 href="/timeline"
                 className="hover:text-stone-900 text-stone-600"
               >
@@ -76,6 +82,14 @@ export default function RootLayout({
         <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
           {children}
         </main>
+        <footer className="border-t border-stone-200 bg-white">
+          <div className="mx-auto flex max-w-5xl flex-col gap-2 px-4 py-5 text-sm text-stone-500 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <span>BabyGrowHelper family trial</span>
+            <Link href="/feedback" className="text-stone-700 underline-offset-4 hover:underline">
+              提交内测反馈
+            </Link>
+          </div>
+        </footer>
       </body>
     </html>
   );

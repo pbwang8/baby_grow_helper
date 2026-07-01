@@ -3,6 +3,7 @@
 // PRD §2.1#5 — /timeline: events + signals 混排，点 signal 看 evidence_events.
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   activeChildId,
   extractSignals,
@@ -26,20 +27,35 @@ export default function TimelinePage() {
   const [signals, setSignals] = useState<SignalOut[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [analysisWarning, setAnalysisWarning] = useState<string | null>(null);
   const [extracting, setExtracting] = useState(false);
   const [openSignalId, setOpenSignalId] = useState<string | null>(null);
 
   async function refresh() {
     setLoading(true);
     setError(null);
+    setAnalysisWarning(null);
     try {
       const childId = activeChildId();
-      const [e, s] = await Promise.all([
-        listEvents({ child_id: childId, limit: 100 }),
-        listSignals({ child_id: childId, limit: 50 }),
-      ]);
+      if (!childId) {
+        setEvents([]);
+        setSignals([]);
+        setError("还没有选择孩子。先去孩子档案创建或选择孩子。");
+        return;
+      }
+      const e = await listEvents({ child_id: childId, limit: 100 });
       setEvents(e);
-      setSignals(s);
+      try {
+        const s = await listSignals({ child_id: childId, limit: 50 });
+        setSignals(s);
+      } catch (err) {
+        setSignals([]);
+        setAnalysisWarning(
+          `事件已加载；信号分析暂不可用：${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -54,11 +70,19 @@ export default function TimelinePage() {
   async function onExtract() {
     setExtracting(true);
     setError(null);
+    setAnalysisWarning(null);
     try {
-      await extractSignals({ child_id: activeChildId(), window_days: 14 });
+      const childId = activeChildId();
+      if (!childId) {
+        setError("还没有选择孩子。先去孩子档案创建或选择孩子。");
+        return;
+      }
+      await extractSignals({ child_id: childId, window_days: 14 });
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setAnalysisWarning(
+        `提取信号暂不可用：${err instanceof Error ? err.message : String(err)}`,
+      );
     } finally {
       setExtracting(false);
     }
@@ -104,7 +128,18 @@ export default function TimelinePage() {
 
       {error && (
         <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700">
-          {error}
+          {error}{" "}
+          {error.includes("孩子") && (
+            <Link href="/children" className="underline">
+              去孩子档案
+            </Link>
+          )}
+        </div>
+      )}
+
+      {analysisWarning && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          {analysisWarning}
         </div>
       )}
 

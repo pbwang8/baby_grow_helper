@@ -59,6 +59,20 @@ def test_create_family_stores_hash_not_raw_code(tmp_db: Path) -> None:
     assert member["display_name"] == "Alpha Owner"
 
 
+def test_create_family_generates_readable_mobile_code(tmp_db: Path) -> None:
+    created = family_admin.create_family(
+        family_id="fam_001",
+        name="Alpha Family",
+    )
+    parts = created.access_code.split("-")
+    assert len(parts) == 4
+    assert parts[0] == "bgh"
+    assert [len(p) for p in parts[1:]] == [4, 4, 4]
+    assert created.access_code.lower() == created.access_code
+    for char in "01ilo":
+        assert char not in created.access_code
+
+
 def test_create_family_enforces_trial_cap(
     tmp_db: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

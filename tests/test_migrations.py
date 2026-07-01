@@ -22,17 +22,21 @@ def test_detect_backend_postgres_url() -> None:
 
 def test_list_migration_files_contains_phase25_sqlite() -> None:
     files = migrations.list_migration_files("sqlite")
-    assert [f.version for f in files] == ["0001"]
+    assert [f.version for f in files] == ["0001", "0002"]
     assert files[0].path.name == "0001_phase25_family_foundation.sql"
+    assert files[1].path.name == "0002_trial_feedback.sql"
 
 
 def test_list_migration_files_contains_postgres_initial_schema() -> None:
     files = migrations.list_migration_files("postgres")
-    assert [f.version for f in files] == ["0001"]
+    assert [f.version for f in files] == ["0001", "0002"]
     sql = files[0].path.read_text(encoding="utf-8")
     assert "CREATE EXTENSION IF NOT EXISTS vector" in sql
     assert "family_id TEXT NOT NULL" in sql
     assert "CREATE TABLE IF NOT EXISTS weekly_insights" in sql
+    assert "CREATE TABLE IF NOT EXISTS trial_feedback" in files[1].path.read_text(
+        encoding="utf-8"
+    )
 
 
 def test_apply_sqlite_migrations_idempotent(tmp_path: Path) -> None:
@@ -40,7 +44,7 @@ def test_apply_sqlite_migrations_idempotent(tmp_path: Path) -> None:
     first = migrations.apply_migrations(backend="sqlite", database=str(db_path))
     second = migrations.apply_migrations(backend="sqlite", database=str(db_path))
 
-    assert first == ["0001"]
+    assert first == ["0001", "0002"]
     assert second == []
 
 

@@ -4,6 +4,7 @@
 
 import {
   getFamilyAccessCode,
+  getFamilySession,
   getSessionChildId,
   saveFamilySession,
 } from "./family-session";
@@ -24,6 +25,8 @@ export const DEFAULT_CHILD_ID =
   process.env.NEXT_PUBLIC_CHILD_ID ?? "xiaoming";
 
 export function activeChildId(): string {
+  const session = getFamilySession();
+  if (session) return session.child_id ?? "";
   return getSessionChildId() ?? DEFAULT_CHILD_ID;
 }
 
@@ -143,9 +146,20 @@ export async function listChildren(): Promise<ChildOut[]> {
   return jsonFetch<ChildOut[]>("/children");
 }
 
+export async function createChild(args: {
+  name: string;
+  birthday: string;
+}): Promise<ChildOut> {
+  return jsonFetch<ChildOut>("/children", {
+    method: "POST",
+    body: JSON.stringify(args),
+  });
+}
+
 export async function postEvent(args: {
   child_id: string;
   raw_text: string;
+  occurred_at?: string;
 }): Promise<EventOut> {
   return jsonFetch<EventOut>("/events", {
     method: "POST",
@@ -293,5 +307,30 @@ export async function postFeedback(args: {
   return jsonFetch<FeedbackOut>(`/insights/${args.insight_id}/feedback`, {
     method: "POST",
     body: JSON.stringify(body),
+  });
+}
+
+// ---- Phase 2.5: invited-family product feedback --------------------------
+
+export type TrialFeedbackCategory = "bug" | "idea" | "confusing" | "other";
+
+export type TrialFeedbackOut = {
+  id: string;
+  child_id: string | null;
+  page: string;
+  category: TrialFeedbackCategory;
+  created_at: string;
+};
+
+export async function submitTrialFeedback(args: {
+  child_id?: string | null;
+  page: string;
+  category: TrialFeedbackCategory;
+  message: string;
+  contact?: string | null;
+}): Promise<TrialFeedbackOut> {
+  return jsonFetch<TrialFeedbackOut>("/feedback", {
+    method: "POST",
+    body: JSON.stringify(args),
   });
 }

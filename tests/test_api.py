@@ -125,6 +125,45 @@ def test_post_event_persists_and_returns(seeded_xiaoming: Path) -> None:
     assert rows[0]["type"] == "milestone"
 
 
+def test_post_event_accepts_historical_occurred_date(seeded_xiaoming: Path) -> None:
+    with _client_with_recorder(seeded_xiaoming) as client:
+        r = client.post(
+            "/events",
+            json={
+                "child_id": "xiaoming",
+                "raw_text": "补历史：小明第一次自己扶栏杆上楼梯",
+                "occurred_at": "2024-10-01",
+            },
+        )
+        assert r.status_code == 201, r.text
+        body = r.json()
+        assert body["timestamp"] == "2024-10-01T12:00:00+08:00"
+
+    conn = db_module.get_conn(seeded_xiaoming)
+    try:
+        row = conn.execute(
+            "SELECT timestamp FROM events WHERE child_id = 'xiaoming'"
+        ).fetchone()
+    finally:
+        conn.close()
+    assert row is not None
+    assert row["timestamp"] == "2024-10-01T12:00:00+08:00"
+
+
+def test_post_event_rejects_bad_occurred_at(seeded_xiaoming: Path) -> None:
+    with _client_with_recorder(seeded_xiaoming) as client:
+        r = client.post(
+            "/events",
+            json={
+                "child_id": "xiaoming",
+                "raw_text": "补历史：随便写一条",
+                "occurred_at": "2024/10/01",
+            },
+        )
+        assert r.status_code == 422
+        assert "occurred_at" in r.json()["detail"]
+
+
 def test_post_event_triggers_background_embedding(seeded_xiaoming: Path) -> None:
     """POST /events should kick off the embedding BackgroundTask, which
     inserts into event_embeddings with the stubbed encoder."""

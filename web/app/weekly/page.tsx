@@ -105,7 +105,13 @@ export default function WeeklyPage() {
     setLoading(true);
     setError(null);
     try {
-      const rows = await listInsights({ child_id: activeChildId(), limit: 12 });
+      const childId = activeChildId();
+      if (!childId) {
+        setInsights([]);
+        setError("还没有选择孩子。先去「孩子」创建或选择孩子。");
+        return;
+      }
+      const rows = await listInsights({ child_id: childId, limit: 12 });
       setInsights(rows);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -129,8 +135,13 @@ export default function WeeklyPage() {
     setGenerating(true);
     setError(null);
     try {
+      const childId = activeChildId();
+      if (!childId) {
+        setError("还没有选择孩子。先去「孩子」创建或选择孩子。");
+        return;
+      }
       await generateInsight({
-        child_id: activeChildId(),
+        child_id: childId,
         week_start: selected.weekStart,
         backend: "claude",
       });
@@ -192,8 +203,9 @@ export default function WeeklyPage() {
       </div>
 
       {error && (
-        <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-700">
-          {error}
+        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          周报暂不可用：{error}。第一轮内测可以先使用「记一笔」和「时间轴」；
+          周报会在分析层迁到 Postgres 后恢复。
         </div>
       )}
 

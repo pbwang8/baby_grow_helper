@@ -39,6 +39,14 @@ export function saveFamilySession(session: FamilySession): void {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
 }
 
+export function setSessionChildId(child_id: string | null): FamilySession | null {
+  const session = getFamilySession();
+  if (!session) return null;
+  const next = { ...session, child_id };
+  saveFamilySession(next);
+  return next;
+}
+
 export function clearFamilySession(): void {
   window.localStorage.removeItem(STORAGE_KEY);
 }

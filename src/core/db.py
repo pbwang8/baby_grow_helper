@@ -21,6 +21,7 @@ Phase 2.5 additions (per prd/phase2_5-family-mobile-mvp.md §3):
   - Tables: users, families, family_members
   - Nullable family/user columns that let the local SQLite dev path stay
     backward-compatible while enabling a family-scoped API mode.
+  - Table: trial_feedback (family-scoped product feedback during invite tests)
 
 The DB path is taken from BGH_DB env var (default ./data/babygrow.db) so
 tests can point it at a tmpdir.
@@ -203,6 +204,23 @@ CREATE TABLE IF NOT EXISTS insight_feedback (
 
 CREATE INDEX IF NOT EXISTS idx_insight_feedback_insight
     ON insight_feedback(insight_id, section_idx);
+
+-- Phase 2.5: lightweight product feedback for invited family trials. This is
+-- separate from insight_feedback, which rates weekly insight sections.
+CREATE TABLE IF NOT EXISTS trial_feedback (
+    id                       TEXT PRIMARY KEY,
+    family_id                TEXT REFERENCES families(id) ON DELETE CASCADE,
+    child_id                 TEXT REFERENCES children(id) ON DELETE SET NULL,
+    page                     TEXT NOT NULL,
+    category                 TEXT NOT NULL,
+        -- bug | idea | confusing | other
+    message                  TEXT NOT NULL,
+    contact                  TEXT NOT NULL DEFAULT '',
+    created_at               TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_trial_feedback_family_created
+    ON trial_feedback(family_id, created_at DESC);
 """
 
 

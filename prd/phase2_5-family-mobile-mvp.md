@@ -38,6 +38,7 @@ Phase 0-2 已经证明 BabyGrowHelper 的核心链路可以跑通：
 - 查看时间轴
 - 查看信号热度图
 - 查看或触发周报
+- 提交内测反馈，说明哪里卡住、哪里看不懂、想要什么
 
 体验目标：
 
@@ -62,6 +63,7 @@ Phase 0-2 已经证明 BabyGrowHelper 的核心链路可以跑通：
 - `/timeline` 可滚动查看事件
 - `/heatmap` 在手机上不崩布局，可横向滚动或简化展示
 - `/weekly` 可查看周报和提交 section 反馈
+- `/feedback` 可提交产品级内测反馈（区别于周报 section 反馈）
 - 增加 PWA 基础配置：manifest、图标占位、添加到桌面名称
 
 ### 3.2 最小家庭访问控制
@@ -85,6 +87,7 @@ children
 ```
 
 事件、信号、周报、反馈必须能追溯到 `family_id` 和 `child_id`。
+内测产品反馈单独存储在 `trial_feedback`，不混入周报 section 反馈。
 
 ### 3.3 服务端数据库
 
@@ -145,6 +148,8 @@ Ollama-compatible local/remote model endpoint
 - `usage_log` 能归属到 user/family
 - 云端调用记录 model、tokens、latency、purpose
 - 保留每用户/月 token cap 的配置位置
+- `trial_feedback` 能归属到 family/child，供内测迭代整理
+- `trial_feedback` 每周可汇总发送给作者邮箱；邮件只是通知渠道，数据库仍是唯一事实源
 
 本阶段不要求做支付，但不能让未来支付系统无处挂载。
 
@@ -172,6 +177,7 @@ Ollama-compatible local/remote model endpoint
 - `/log` 能提交事件
 - `/timeline` 能看到刚提交的事件
 - `/weekly` 能查看已有周报或触发生成
+- `/feedback` 能提交一条产品级内测反馈
 - 页面主要文本和按钮在 360px 宽度下不溢出
 
 ### 5.2 数据隔离
@@ -248,6 +254,7 @@ Phase 2.5 只实现 `family -> usage cap` 的基础，不实现支付。
 ### M2.5.3 Auth + API 隔离
 
 - 家庭访问码登录
+- 访问码每个家庭独立；自动码需适合手机手输，允许管理员显式设置短码
 - 请求上下文解析出 `family_id`
 - events/signals/insights 按 family 隔离
 - export/delete API
@@ -257,6 +264,7 @@ Phase 2.5 只实现 `family -> usage cap` 的基础，不实现支付。
 - `/log` 手机输入优化
 - `/timeline` 手机信息密度优化
 - `/weekly` 手机反馈控件优化
+- `/feedback` 内测反馈入口
 - PWA manifest
 
 ### M2.5.5 部署

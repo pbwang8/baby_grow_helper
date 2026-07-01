@@ -44,9 +44,11 @@ class CreatedFamily:
 
 
 def _new_access_code() -> str:
-    # 16 URL-safe chars gives enough entropy for a private family trial while
-    # staying human-copyable in chat.
-    return secrets.token_urlsafe(12)
+    # Human-readable but still high-entropy enough for <=10 invited families.
+    # We avoid ambiguous chars like 0/O/1/I so relatives can type it on mobile.
+    alphabet = "23456789abcdefghjkmnpqrstuvwxyz"
+    body = "".join(secrets.choice(alphabet) for _ in range(12))
+    return f"bgh-{body[:4]}-{body[4:8]}-{body[8:]}"
 
 
 def create_family(

@@ -10,10 +10,11 @@ SQLite remains the default for local development. Postgres is selected by
 
 from __future__ import annotations
 
+import datetime as dt
 import importlib
 import json
 import os
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol, cast
@@ -21,6 +22,8 @@ from typing import Any, Literal, Protocol, cast
 from src.core import db as sqlite_db
 from src.core import family as family_module
 from src.core.migrations import detect_backend
+from src.core.models import compute_age_months
+from src.core.signal_delta import HeatmapCell
 
 RuntimeBackend = Literal["sqlite", "postgres"]
 Row = dict[str, object]
@@ -36,6 +39,17 @@ class ChildRecord:
     id: str
     name: str
     birthday: str
+
+
+@dataclass(frozen=True)
+class TrialFeedbackRecord:
+    id: str
+    child_id: str | None
+    page: str
+    category: str
+    message: str
+    contact: str
+    created_at: str
 
 
 @dataclass(frozen=True)
@@ -80,6 +94,11 @@ class FamilyEventStore(Protocol):
     def insert_event(self, event: EventRecord, *, family_id: str | None) -> None:
         """Persist one already-structured event."""
 
+    def create_child(
+        self, *, family_id: str | None, child_id: str, name: str, birthday: str
+    ) -> ChildRecord:
+        """Create one child profile visible to the current family."""
+
     def list_events(
         self, *, child_id: str, family_id: str | None, limit: int
     ) -> list[Row]:
@@ -87,6 +106,16 @@ class FamilyEventStore(Protocol):
 
     def list_children(self, *, family_id: str | None) -> list[ChildRecord]:
         """Children visible to the caller."""
+
+    def submit_trial_feedback(
+        self, feedback: TrialFeedbackRecord, *, family_id: str | None
+    ) -> None:
+        """Persist invited-family product feedback."""
+
+    def heatmap_data(
+        self, *, child_id: str, family_id: str | None, domains: list[str] | None
+    ) -> list[HeatmapCell]:
+        """Return age-month × domain heatmap cells visible to the caller."""
 
 
 def runtime_backend() -> RuntimeBackend:
@@ -156,6 +185,23 @@ class SQLiteFamilyEventStore:
         finally:
             conn.close()
 
+    def create_child(
+        self, *, family_id: str | None, child_id: str, name: str, birthday: str
+    ) -> ChildRecord:
+        conn = sqlite_db.get_conn()
+        try:
+            with sqlite_db.transactional(conn):
+                conn.execute(
+                    """
+                    INSERT INTO children(id, family_id, name, birthday)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (child_id, family_id, name, birthday),
+                )
+            return ChildRecord(id=child_id, name=name, birthday=birthday)
+        finally:
+            conn.close()
+
     def list_events(
         self, *, child_id: str, family_id: str | None, limit: int
     ) -> list[Row]:
@@ -204,6 +250,97 @@ class SQLiteFamilyEventStore:
         try:
             rows = conn.execute(sql, params).fetchall()
             return [_child_from_row(_row_to_dict(row)) for row in rows]
+        finally:
+            conn.close()
+
+    def submit_trial_feedback(
+        self, feedback: TrialFeedbackRecord, *, family_id: str | None
+    ) -> None:
+        conn = sqlite_db.get_conn()
+        try:
+            with sqlite_db.transactional(conn):
+                conn.execute(
+                    """
+                    INSERT INTO trial_feedback
+                      (id, family_id, child_id, page, category, message, contact, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        feedback.id,
+                        family_id,
+                        feedback.child_id,
+                        feedback.page,
+                        feedback.category,
+                        feedback.message,
+                        feedback.contact,
+                        feedback.created_at,
+                    ),
+                )
+        finally:
+            conn.close()
+
+    def heatmap_data(
+        self, *, child_id: str, family_id: str | None, domains: list[str] | None
+    ) -> list[HeatmapCell]:
+        conn = sqlite_db.get_conn()
+        try:
+            if family_id is None:
+                child = conn.execute(
+                    "SELECT birthday FROM children WHERE id = ?", (child_id,)
+                ).fetchone()
+                event_rows = conn.execute(
+                    """
+                    SELECT id, timestamp, domains_json
+                    FROM events
+                    WHERE child_id = ?
+                    ORDER BY timestamp ASC
+                    """,
+                    (child_id,),
+                ).fetchall()
+                signal_rows = conn.execute(
+                    """
+                    SELECT intensity, evidence_event_ids_json, domains_json
+                    FROM signals
+                    WHERE child_id = ? AND status = 'active'
+                    """,
+                    (child_id,),
+                ).fetchall()
+            else:
+                child = conn.execute(
+                    """
+                    SELECT birthday
+                    FROM children
+                    WHERE id = ? AND family_id = ?
+                    """,
+                    (child_id, family_id),
+                ).fetchone()
+                event_rows = conn.execute(
+                    """
+                    SELECT e.id, e.timestamp, e.domains_json
+                    FROM events e
+                    JOIN children c ON c.id = e.child_id
+                    WHERE e.child_id = ? AND c.family_id = ?
+                    ORDER BY e.timestamp ASC
+                    """,
+                    (child_id, family_id),
+                ).fetchall()
+                signal_rows = conn.execute(
+                    """
+                    SELECT s.intensity, s.evidence_event_ids_json, s.domains_json
+                    FROM signals s
+                    JOIN children c ON c.id = s.child_id
+                    WHERE s.child_id = ? AND c.family_id = ? AND s.status = 'active'
+                    """,
+                    (child_id, family_id),
+                ).fetchall()
+            if child is None:
+                return []
+            return _heatmap_from_rows(
+                birthday=str(child["birthday"]),
+                event_rows=[_row_to_dict(row) for row in event_rows],
+                signal_rows=[_row_to_dict(row) for row in signal_rows],
+                domains=domains,
+            )
         finally:
             conn.close()
 
@@ -276,6 +413,23 @@ class PostgresFamilyEventStore:
                 )
             conn.commit()
 
+    def create_child(
+        self, *, family_id: str | None, child_id: str, name: str, birthday: str
+    ) -> ChildRecord:
+        if family_id is None:
+            raise RuntimeStoreError("Postgres child writes require family_id")
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO children(id, family_id, name, birthday)
+                    VALUES (%s, %s, %s, %s)
+                    """,
+                    (child_id, family_id, name, birthday),
+                )
+            conn.commit()
+        return ChildRecord(id=child_id, name=name, birthday=birthday)
+
     def list_events(
         self, *, child_id: str, family_id: str | None, limit: int
     ) -> list[Row]:
@@ -312,6 +466,72 @@ class PostgresFamilyEventStore:
             rows = cur.fetchall()
         return [_child_from_row(_row_to_dict(row)) for row in rows]
 
+    def submit_trial_feedback(
+        self, feedback: TrialFeedbackRecord, *, family_id: str | None
+    ) -> None:
+        if family_id is None:
+            raise RuntimeStoreError("Postgres feedback writes require family_id")
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO trial_feedback
+                      (id, family_id, child_id, page, category, message, contact, created_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        feedback.id,
+                        family_id,
+                        feedback.child_id,
+                        feedback.page,
+                        feedback.category,
+                        feedback.message,
+                        feedback.contact,
+                        feedback.created_at,
+                    ),
+                )
+            conn.commit()
+
+    def heatmap_data(
+        self, *, child_id: str, family_id: str | None, domains: list[str] | None
+    ) -> list[HeatmapCell]:
+        if family_id is None:
+            return []
+        with self._connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT birthday FROM children WHERE id = %s AND family_id = %s",
+                (child_id, family_id),
+            )
+            child = cur.fetchone()
+            if child is None:
+                return []
+            child_row = _row_to_dict(child)
+            cur.execute(
+                """
+                SELECT id, timestamp, domains_json
+                FROM events
+                WHERE family_id = %s AND child_id = %s
+                ORDER BY timestamp ASC
+                """,
+                (family_id, child_id),
+            )
+            event_rows = [_row_to_dict(row) for row in cur.fetchall()]
+            cur.execute(
+                """
+                SELECT intensity, evidence_event_ids_json, domains_json
+                FROM signals
+                WHERE family_id = %s AND child_id = %s AND status = 'active'
+                """,
+                (family_id, child_id),
+            )
+            signal_rows = [_row_to_dict(row) for row in cur.fetchall()]
+        return _heatmap_from_rows(
+            birthday=str(child_row["birthday"]),
+            event_rows=event_rows,
+            signal_rows=signal_rows,
+            domains=domains,
+        )
+
     def _connect(self) -> AbstractContextManager[Any]:
         if self._connect_factory is not None:
             return self._connect_factory(self._database_url)
@@ -344,3 +564,78 @@ def _child_from_row(row: Mapping[str, object]) -> ChildRecord:
         name=str(row["name"]),
         birthday=str(row["birthday"]),
     )
+
+
+def _heatmap_from_rows(
+    *,
+    birthday: str,
+    event_rows: Sequence[Mapping[str, object]],
+    signal_rows: Sequence[Mapping[str, object]],
+    domains: list[str] | None,
+) -> list[HeatmapCell]:
+    bucket_events: dict[tuple[int, str], list[str]] = {}
+    domain_filter = set(domains) if domains is not None else None
+    for row in event_rows:
+        event_id = str(row["id"])
+        timestamp = _timestamp_text(row["timestamp"])
+        age = compute_age_months(birthday, timestamp)
+        for domain in _json_string_list(row["domains_json"]):
+            if domain_filter is not None and domain not in domain_filter:
+                continue
+            bucket_events.setdefault((age, domain), []).append(event_id)
+
+    if not bucket_events:
+        return []
+
+    boost_by_event_domain: dict[tuple[str, str], float] = {}
+    for row in signal_rows:
+        intensity = _float_value(row["intensity"])
+        signal_domains = _json_string_list(row["domains_json"])
+        evidence = _json_string_list(row["evidence_event_ids_json"])
+        for domain in signal_domains:
+            if domain_filter is not None and domain not in domain_filter:
+                continue
+            for event_id in evidence:
+                key = (event_id, domain)
+                if intensity > boost_by_event_domain.get(key, 0.0):
+                    boost_by_event_domain[key] = intensity
+
+    raw_scores: dict[tuple[int, str], float] = {}
+    for (age, domain), event_ids in bucket_events.items():
+        raw_scores[(age, domain)] = sum(
+            1.0 + boost_by_event_domain.get((event_id, domain), 0.0)
+            for event_id in event_ids
+        )
+
+    max_score = max(raw_scores.values())
+    cells = [
+        HeatmapCell(
+            age_months=age,
+            domain=domain,
+            raw_score=score,
+            intensity=score / max_score if max_score > 0 else 0.0,
+            event_count=len(bucket_events[(age, domain)]),
+        )
+        for (age, domain), score in raw_scores.items()
+    ]
+    cells.sort(key=lambda c: (c.age_months, c.domain))
+    return cells
+
+
+def _json_string_list(value: object) -> list[str]:
+    loaded = json.loads(value) if isinstance(value, str) else value
+    if not isinstance(loaded, list):
+        return []
+    return [str(item) for item in loaded]
+
+
+def _timestamp_text(value: object) -> str:
+    if isinstance(value, dt.datetime):
+        return value.isoformat()
+    return str(value)
+
+
+def _float_value(value: object) -> float:
+    if isinstance(value, int | float | str):
+        return float(value)
+    raise RuntimeStoreError(f"Expected float-compatible value, got {type(value).__name__}")

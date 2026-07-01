@@ -47,6 +47,7 @@ data/
 # Project-local
 changes/auto/
 reports/*.local.*
+backups/
 
 # Claude Code local state (per-machine)
 .claude/settings.local.json

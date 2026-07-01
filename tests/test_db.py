@@ -29,6 +29,7 @@ def test_init_db_creates_all_tables(tmp_db: Path) -> None:
         "users",
         "weekly_insights",
         "insight_feedback",
+        "trial_feedback",
     }
     assert expected.issubset(table_names), f"missing: {expected - table_names}"
 

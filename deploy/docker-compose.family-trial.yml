@@ -25,6 +25,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.api
+    image: deploy-api:latest
     environment:
       BGH_DATABASE_URL: postgresql://${POSTGRES_USER:-babygrow}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/${POSTGRES_DB:-babygrow}
       BGH_RUNTIME_DB_BACKEND: postgres
@@ -41,6 +42,37 @@ services:
     ports:
       - "8000:8000"
 
+  feedback-digest:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    image: deploy-api:latest
+    profiles: ["feedback-email"]
+    environment:
+      BGH_DATABASE_URL: postgresql://${POSTGRES_USER:-babygrow}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/${POSTGRES_DB:-babygrow}
+      BGH_RUNTIME_DB_BACKEND: postgres
+      BGH_FEEDBACK_DIGEST_TO: ${BGH_FEEDBACK_DIGEST_TO:-wpb889@outlook.com}
+      BGH_FEEDBACK_DIGEST_FROM: ${BGH_FEEDBACK_DIGEST_FROM:-}
+      FEEDBACK_DIGEST_INTERVAL_SECONDS: ${FEEDBACK_DIGEST_INTERVAL_SECONDS:-604800}
+      FEEDBACK_DIGEST_LOOKBACK_DAYS: ${FEEDBACK_DIGEST_LOOKBACK_DAYS:-7}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_TLS: ${SMTP_TLS:-1}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command:
+      - "sh"
+      - "-c"
+      - |
+        while true; do
+          uv run --no-sync python -m src.scripts.feedback_digest --send --days "$${FEEDBACK_DIGEST_LOOKBACK_DAYS:-7}" || true
+          sleep "$${FEEDBACK_DIGEST_INTERVAL_SECONDS:-604800}"
+        done
+    restart: unless-stopped
+
   web:
     build:
       context: ..
@@ -53,6 +85,29 @@ services:
       - api
     ports:
       - "3000:3000"
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    profiles: ["named-tunnel"]
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - web
+    restart: unless-stopped
+
+  ngrok:
+    image: ngrok/ngrok:latest
+    profiles: ["ngrok"]
+    command:
+      - "http"
+      - "--url=${NGROK_DOMAIN:-}"
+      - "http://web:3000"
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
+    depends_on:
+      - web
+    ports:
+      - "4040:4040"
+    restart: unless-stopped
 
 volumes:
   postgres_data:
